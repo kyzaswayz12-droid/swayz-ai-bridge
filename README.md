@@ -11,7 +11,7 @@ Prototype single-turn Slack router for OpenAI and Anthropic. **Not deployed or l
 - One response is posted to the originating Slack thread; there are no automatic agent-to-agent conversations.
 
 ## Local development
-1. Install Python 3.11+: `python -m pip install -r requirements.txt`.
+1. Install Python 3.11+: `python -m pip install -r requirements-dev.txt`.
 2. Run tests: `python -m pytest -q`.
 3. Run the app: `uvicorn app.main:app --host 127.0.0.1 --port 8000`.
 4. Build container: `docker build -t swayz-ai-bridge .`.
