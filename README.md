@@ -1,31 +1,31 @@
 # Swayz AI Bridge
 
-A prototype Slack router for OpenAI and Anthropic, **not yet deployed**.
+Prototype single-turn Slack router for OpenAI and Anthropic. **Not deployed or live-tested.**
 
-## Features
-- Explicit literal prefixes: `@chatgpt your question` or `@claude your question`
-- Slack HMAC signature verification and timestamp checks
-- Restriction to one configured Slack channel
-- One model response per user message, posted in its Slack thread
-- Ignores bot messages to prevent automatic bot-to-bot loops
+## How it works
+- In the authorised channel, type `chatgpt: hello` or `claude: hello`. These are **literal prefixes**, not Slack @mentions.
+- Slack signatures are checked, and bot/edit messages are ignored.
+- Both `ALLOWED_CHANNEL_ID` and `ALLOWED_USER_IDS` must be configured. An empty allowlist denies all users.
+- SQLite stores duplicate-message claims and UTC daily request counts.
+- Paid API calls are **disabled by default**: both daily limits default to 0. Request counts are not monetary caps.
+- One response is posted to the originating Slack thread; there are no automatic agent-to-agent conversations.
 
-## Setup
-1. Install Python 3.11+ and run `pip install -r requirements.txt`.
-2. Create a Slack app with Events API, `chat:write`, `channels:history`, and `message.channels` subscription. Invite it to the test channel.
-3. Store Slack signing secret, bot token, and model API keys in **host-managed secret environment variables**, using `.env.example` only as a guide. Set `ALLOWED_CHANNEL_ID` to the test channel.
-4. Run `uvicorn app.main:app --host 0.0.0.0 --port 8000`, behind HTTPS. Slack event URL: `https://your-host/slack/events`.
-5. Run `pytest -q` for unit tests.
+## Local development
+1. Install Python 3.11+: `python -m pip install -r requirements.txt`.
+2. Run tests: `python -m pytest -q`.
+3. Run the app: `uvicorn app.main:app --host 127.0.0.1 --port 8000`.
+4. Build container: `docker build -t swayz-ai-bridge .`.
 
-## Important limitations
-- The code has not been deployed or tested against live Slack/model APIs.
-- The prototype recognises literal text prefixes, not Slack autocomplete user mentions.
-- FastAPI background tasks and in-memory deduplication are not durable. Add a database, queue, spending limits, monitoring, and approval gates before production.
-- No automatic bot-to-bot dialogue or GitHub modifications are enabled.
-- Default model IDs may need updating for your API accounts.
+## Slack and deployment
+See [deployment checklist](docs/DEPLOYMENT.md). The Slack app needs `chat:write`, `channels:history`, and `message.channels` for the public test channel. Provide a valid HTTPS `/slack/events` URL. Store secrets only in hosting environment variables.
+
+## Operational limitations
+- Single instance and worker only, with SQLite on a persistent writable volume (`/data/bridge.sqlite3` in Docker).
+- The mounted `/data` directory must be writable by UID 10001. A Dockerfile `VOLUME` declaration does not provision cloud persistent storage.
+- Message delivery is at-most-once. Background tasks are not a durable job queue.
+- Configure hard provider-side spend controls and approve the budget before enabling requests.
+- No automatic bot-to-bot dialogue, repository modifications, or deployment actions are enabled.
+- GitHub Actions tests and Docker build must pass before deployment.
 
 ## Planned handoff format
 `task_id, thread_id, from, to, goal, context_summary, artifacts, completed, next_action, expected_output, constraints, turn_index, max_turns, requires_approval`
-
-## Safe default
-
-Model requests are disabled by default (daily limits = 0). Explicitly set both daily limits only after billing controls and an approved budget are configured. Request caps are not hard monetary caps.
