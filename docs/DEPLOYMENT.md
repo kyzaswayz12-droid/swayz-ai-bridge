@@ -28,3 +28,7 @@ An empty allowed-user list denies all calls.
 - No automatic bot-to-bot messages, GitHub writes or paid deployment without separate approval.
 - Validate signing, user restrictions, duplicate delivery and failure handling in staging before production.
 - Check model IDs against each provider's current API documentation.
+
+## Safe default
+
+Model requests are disabled by default (daily limits = 0). Explicitly set both daily limits only after billing controls and an approved budget are configured. Request caps are not hard monetary caps.
