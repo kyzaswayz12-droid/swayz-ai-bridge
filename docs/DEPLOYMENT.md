@@ -32,3 +32,13 @@ An empty allowed-user list denies all calls.
 ## Safe default
 
 Model requests are disabled by default (daily limits = 0). Explicitly set both daily limits only after billing controls and an approved budget are configured. Request caps are not hard monetary caps.
+
+## Docker volume and HTTPS
+
+The image defaults to `BRIDGE_DB_PATH=/data/bridge.sqlite3`. Before running it, mount a **persistent** local filesystem volume at `/data` and ensure the mount directory is writable by UID 10001 (for example, on a controlled Linux host: `chown 10001:10001 /path/to/bridge-data`). The Dockerfile `VOLUME` declaration alone does **not** create a durable DigitalOcean volume. Do not use multiple replicas or NFS-mounted SQLite state.
+
+Terminate HTTPS using a configured reverse proxy (e.g. Caddy or nginx) with a valid certificate and proxy requests to the container's port 8000. Never expose the application directly to the public internet without HTTPS.
+
+**Stop switch:** set either daily limit to 0 and restart/redeploy; alternatively revoke provider API keys or remove the Slack app from the test channel. Environment variables do not automatically update in a running container.
+
+**Current status:** No DigitalOcean service has been created, no Slack app credentials are configured, and no live provider calls have been verified.
