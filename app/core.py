@@ -22,6 +22,7 @@ TOO_LONG_TEXT = f"That message is too long (maximum {MAX_PROMPT_CHARS} character
 LIMIT_TEXTS = {
     "user_limit": "You have reached your daily request limit. Please try again tomorrow (UTC).",
     "total_limit": "The daily request limit for this channel has been reached. Please try again tomorrow (UTC).",
+    "disabled": "AI requests are disabled until the project owner enables them.",
 }
 _COMMAND_RE = re.compile(r"^\s*(chatgpt|claude)\s*:\s*(.*)$", re.IGNORECASE | re.DOTALL)
 _PROVIDERS = {"chatgpt": "openai", "claude": "anthropic"}
@@ -206,6 +207,8 @@ def handle_event(payload: object, settings: Settings, store: Store, now: float) 
         return Reply(channel, thread_ts, EMPTY_PROMPT_TEXT)
     if command.problem == "too_long":
         return Reply(channel, thread_ts, TOO_LONG_TEXT)
+    if settings.per_user_limit == 0 or settings.total_limit == 0:
+        return Reply(channel, thread_ts, LIMIT_TEXTS["disabled"])
     limit_hit = store.try_consume(user, now, settings.per_user_limit, settings.total_limit)
     if limit_hit:
         return Reply(channel, thread_ts, LIMIT_TEXTS[limit_hit])
