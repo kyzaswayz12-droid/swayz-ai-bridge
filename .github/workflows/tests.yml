@@ -17,9 +17,27 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
+          cache-dependency-path: requirements*.txt
       - name: Install dependencies
-        run: python -m pip install -r requirements.txt
+        run: python -m pip install -r requirements-dev.txt
       - name: Run tests
         run: python -m pytest -q
-      - name: Build container
-        run: docker build -t swayz-ai-bridge:test .
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t swayz-ai-bridge:ci .
+      - name: Start container and check health
+        run: |
+          docker run -d --name bridge -p 8000:8000 swayz-ai-bridge:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/health; then exit 0; fi
+            sleep 1
+          done
+          docker logs bridge
+          exit 1
+      - name: Show logs on failure
+        if: failure()
+        run: docker logs bridge || true
