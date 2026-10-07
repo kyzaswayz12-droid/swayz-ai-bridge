@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
@@ -14,7 +15,20 @@ from app.core import (
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("swayz.bridge")
-app = FastAPI(title="Swayz AI Bridge", docs_url=None, redoc_url=None, openapi_url=None)
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    try:
+        get_store()
+    except Exception as exc:
+        logger.critical("state database unavailable error=%s; check BRIDGE_DB_PATH and volume permissions", type(exc).__name__)
+        raise
+    yield
+    store = getattr(app.state, "store", None)
+    if store is not None:
+        store.close()
+
+
+app = FastAPI(title="Swayz AI Bridge", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
 
 def get_store() -> Store:
@@ -75,8 +89,10 @@ async def post_message(channel: str, thread_ts: str, text: str) -> None:
                 json={"channel": channel, "thread_ts": thread_ts, "text": text[:MAX_REPLY_CHARS]},
             )
             response.raise_for_status()
-            if not response.json().get("ok"):
-                logger.error("slack rejected message")
+            result = response.json()
+            if not result.get("ok"):
+                error_code = str(result.get("error", "unknown"))
+                logger.error("slack rejected message error=%s", error_code[:64])
     except Exception as exc:
         logger.error("slack post failed error=%s", describe_error(exc))
 
