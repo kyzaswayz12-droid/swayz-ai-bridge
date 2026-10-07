@@ -14,7 +14,7 @@ from app.core import (
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(name)s %(message)s")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logger = logging.getLogger("swayz.bridge")
-app = FastAPI(title="Swayz AI Bridge")
+app = FastAPI(title="Swayz AI Bridge", docs_url=None, redoc_url=None, openapi_url=None)
 
 
 def get_store() -> Store:
@@ -106,6 +106,8 @@ async def slack_events(request: Request, background_tasks: BackgroundTasks):
         payload = json.loads(body)
     except ValueError:
         raise HTTPException(status_code=400, detail="Invalid JSON")
+    if isinstance(payload, dict) and payload.get("type") == "url_verification":
+        return {"challenge": str(payload.get("challenge", ""))}
     action = handle_event(payload, Settings.from_env(os.environ), get_store(), time.time())
     if isinstance(action, Challenge):
         return {"challenge": action.value}
