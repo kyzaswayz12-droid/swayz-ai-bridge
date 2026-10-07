@@ -24,6 +24,8 @@ def test_dispatch_and_dedup(monkeypatch):
     monkeypatch.setenv("SLACK_SIGNING_SECRET","test-secret")
     monkeypatch.setenv("ALLOWED_CHANNEL_ID","C1")
     monkeypatch.setenv("ALLOWED_USER_IDS","U1")
+    monkeypatch.setenv("DAILY_LIMIT_PER_USER","10")
+    monkeypatch.setenv("DAILY_LIMIT_TOTAL","10")
     main.app.state.store=Store()
     calls=[]
     async def fake_process(*args):
