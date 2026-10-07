@@ -25,3 +25,7 @@ A prototype Slack router for OpenAI and Anthropic, **not yet deployed**.
 
 ## Planned handoff format
 `task_id, thread_id, from, to, goal, context_summary, artifacts, completed, next_action, expected_output, constraints, turn_index, max_turns, requires_approval`
+
+## Safe default
+
+Model requests are disabled by default (daily limits = 0). Explicitly set both daily limits only after billing controls and an approved budget are configured. Request caps are not hard monetary caps.
