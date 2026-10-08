@@ -3,6 +3,7 @@ import hmac
 import json
 import logging
 import os
+import time
 from pathlib import Path
 
 import httpx
@@ -15,11 +16,21 @@ log = logging.getLogger("swayz.oauth")
 
 @router.get("/slack/oauth/callback", response_class=PlainTextResponse)
 async def oauth_callback(request: Request):
-    # State is generated independently and stored on the server before authorisation.
-    expected = os.environ.get("SLACK_OAUTH_STATE", "")
+    # A state file contains JSON {"state": "...", "expires_at": unix_seconds}.
+    # A one-time exclusive claim prevents simultaneous requests consuming the same state.
+    state_path = os.environ.get("SLACK_OAUTH_STATE_PATH", "")
     supplied = request.query_params.get("state", "")
     code = request.query_params.get("code", "")
-    if not expected or not supplied or not hmac.compare_digest(expected, supplied):
+    if not state_path or not supplied:
+        raise HTTPException(status_code=403, detail="Invalid OAuth state")
+    state_file = Path(state_path)
+    try:
+        state_data = json.loads(state_file.read_text(encoding="utf-8"))
+        expected = state_data.get("state", "")
+        expiry = float(state_data.get("expires_at", 0))
+    except (OSError, ValueError, TypeError):
+        raise HTTPException(status_code=403, detail="Invalid OAuth state")
+    if not isinstance(expected, str) or not expected or not hmac.compare_digest(expected, supplied) or time.time() >= expiry:
         raise HTTPException(status_code=403, detail="Invalid OAuth state")
     if request.query_params.get("error"):
         raise HTTPException(status_code=400, detail="Slack authorisation declined")
@@ -34,6 +45,24 @@ async def oauth_callback(request: Request):
         raise HTTPException(status_code=503, detail="OAuth not configured")
     if Path(output).exists():
         raise HTTPException(status_code=409, detail="Installation already recorded")
+    # Atomically claim installation; remove state before exchanging the code.
+    claim_path = state_path + ".claimed"
+    try:
+        fd = os.open(claim_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        os.close(fd)
+    except FileExistsError:
+        raise HTTPException(status_code=409, detail="OAuth attempt already in progress")
+    try:
+        # Recheck state after claiming, then consume it.
+        latest = json.loads(state_file.read_text(encoding="utf-8"))
+        if latest != state_data or time.time() >= expiry:
+            raise HTTPException(status_code=403, detail="Invalid OAuth state")
+        state_file.unlink()
+    except (OSError, ValueError, TypeError):
+        raise HTTPException(status_code=403, detail="Invalid OAuth state")
+    finally:
+        # Keep claim marker permanently to reject retries until explicitly reset.
+        pass
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.post(
