@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from app.slack_oauth import router as slack_oauth_router
 from app.core import (
     GENERIC_ERROR_TEXT, MAX_REPLY_CHARS, CallModel, Challenge, MissingConfig,
     Reply, Settings, Store, handle_event, valid_signature,
@@ -29,6 +30,9 @@ async def lifespan(_app: FastAPI):
 
 
 app = FastAPI(title="Swayz AI Bridge", lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
+
+
+app.include_router(slack_oauth_router)
 
 
 def get_store() -> Store:
