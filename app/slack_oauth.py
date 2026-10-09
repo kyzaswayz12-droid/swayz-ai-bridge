@@ -3,6 +3,7 @@ import hmac
 import json
 import logging
 import os
+import secrets
 import time
 from pathlib import Path
 
@@ -12,6 +13,25 @@ from fastapi.responses import PlainTextResponse
 
 router = APIRouter()
 log = logging.getLogger("swayz.oauth")
+
+
+def create_oauth_state(path: Path, ttl_seconds: int = 600) -> str:
+    """Create an unpredictable one-time state; never print it in application logs."""
+    if not 60 <= ttl_seconds <= 900:
+        raise ValueError("OAuth state lifetime must be 60-900 seconds")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    state = secrets.token_urlsafe(32)
+    payload = json.dumps({"state": state, "expires_at": time.time() + ttl_seconds})
+    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(payload)
+            handle.flush()
+            os.fsync(handle.fileno())
+    except BaseException:
+        path.unlink(missing_ok=True)
+        raise
+    return state
 
 
 @router.get("/slack/oauth/callback", response_class=PlainTextResponse)
@@ -60,9 +80,6 @@ async def oauth_callback(request: Request):
         state_file.unlink()
     except (OSError, ValueError, TypeError):
         raise HTTPException(status_code=403, detail="Invalid OAuth state")
-    finally:
-        # Keep claim marker permanently to reject retries until explicitly reset.
-        pass
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             response = await client.post(
