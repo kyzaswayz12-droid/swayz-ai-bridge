@@ -36,8 +36,12 @@ def create_oauth_state(path: Path, ttl_seconds: int = 600) -> str:
 
 
 @router.get("/slack/oauth/start", response_class=PlainTextResponse)
-async def oauth_start():
+async def oauth_start(request: Request):
     """Return a short-lived install link, requiring a server-configured scope list."""
+    admin_token = os.environ.get("SLACK_OAUTH_ADMIN_TOKEN", "")
+    supplied_token = request.headers.get("authorization", "")
+    if not admin_token or not hmac.compare_digest(supplied_token, "Bearer " + admin_token):
+        raise HTTPException(status_code=403, detail="Forbidden")
     state_path = os.environ.get("SLACK_OAUTH_STATE_PATH", "")
     client_id = os.environ.get("SLACK_CLIENT_ID", "")
     redirect_uri = os.environ.get("SLACK_OAUTH_REDIRECT_URI", "")
