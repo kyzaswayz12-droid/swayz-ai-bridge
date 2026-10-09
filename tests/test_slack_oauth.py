@@ -8,12 +8,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from fastapi import HTTPException
-from app.slack_oauth import oauth_callback, create_oauth_state
+from app.slack_oauth import oauth_callback, oauth_start, create_oauth_state
 
 
 class FakeRequest:
     def __init__(self, **params):
         self.query_params = params
+        self.headers = {}
 
 
 class OAuthGuardTests(unittest.TestCase):
@@ -49,6 +50,33 @@ class OAuthGuardTests(unittest.TestCase):
     def test_state_ttl_bounds(self):
         with self.assertRaises(ValueError):
             create_oauth_state(Path(self.temp.name) / "short.json", 5)
+
+    def test_start_requires_admin_token(self):
+        with self.assertRaises(HTTPException) as raised:
+            asyncio.run(oauth_start(FakeRequest()))
+        self.assertEqual(raised.exception.status_code, 403)
+
+    def test_start_generates_authorization_link(self):
+        from urllib.parse import urlparse, parse_qs
+        state_file = Path(self.temp.name) / "install-state.json"
+        token_file = Path(self.temp.name) / "bot.json"
+        req = FakeRequest()
+        req.headers = {"authorization": "Bearer admin-secret"}
+        with patch.dict(os.environ, {
+            "SLACK_OAUTH_ADMIN_TOKEN": "admin-secret",
+            "SLACK_OAUTH_STATE_PATH": str(state_file),
+            "SLACK_CLIENT_ID": "client-id",
+            "SLACK_OAUTH_REDIRECT_URI": "https://example.com/slack/oauth/callback",
+            "SLACK_OAUTH_SCOPES": "chat:write,channels:history",
+            "SLACK_OAUTH_TOKEN_PATH": str(token_file),
+        }):
+            link = asyncio.run(oauth_start(req))
+            params = parse_qs(urlparse(link).query)
+            self.assertEqual(params["state"][0], json.loads(state_file.read_text())["state"])
+            self.assertEqual(params["scope"][0], "chat:write,channels:history")
+            with self.assertRaises(HTTPException) as raised:
+                asyncio.run(oauth_start(req))
+            self.assertEqual(raised.exception.status_code, 409)
 
     def test_wrong_state(self):
         self.assert_rejected(403, state="wrong", code="test")
