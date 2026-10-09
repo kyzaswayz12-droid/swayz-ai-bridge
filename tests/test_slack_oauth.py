@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 from fastapi import HTTPException
-from app.slack_oauth import oauth_callback
+from app.slack_oauth import oauth_callback, create_oauth_state
 
 
 class FakeRequest:
@@ -32,6 +32,23 @@ class OAuthGuardTests(unittest.TestCase):
         with self.assertRaises(HTTPException) as raised:
             asyncio.run(oauth_callback(FakeRequest(**params)))
         self.assertEqual(raised.exception.status_code, status)
+
+    def test_state_creation_is_private_and_unique(self):
+        first = Path(self.temp.name) / "new-state.json"
+        token = create_oauth_state(first)
+        record = json.loads(first.read_text())
+        self.assertEqual(token, record["state"])
+        self.assertGreater(record["expires_at"], time.time())
+        self.assertEqual(first.stat().st_mode & 0o777, 0o600)
+        self.assertGreaterEqual(len(token), 32)
+        with self.assertRaises(FileExistsError):
+            create_oauth_state(first)
+        second = create_oauth_state(Path(self.temp.name) / "other-state.json")
+        self.assertNotEqual(token, second)
+
+    def test_state_ttl_bounds(self):
+        with self.assertRaises(ValueError):
+            create_oauth_state(Path(self.temp.name) / "short.json", 5)
 
     def test_wrong_state(self):
         self.assert_rejected(403, state="wrong", code="test")
