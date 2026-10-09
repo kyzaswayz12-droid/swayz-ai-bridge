@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import secrets
+from urllib.parse import urlencode
 import time
 from pathlib import Path
 
@@ -32,6 +33,34 @@ def create_oauth_state(path: Path, ttl_seconds: int = 600) -> str:
         path.unlink(missing_ok=True)
         raise
     return state
+
+
+@router.get("/slack/oauth/start", response_class=PlainTextResponse)
+async def oauth_start():
+    """Return a short-lived install link, requiring a server-configured scope list."""
+    state_path = os.environ.get("SLACK_OAUTH_STATE_PATH", "")
+    client_id = os.environ.get("SLACK_CLIENT_ID", "")
+    redirect_uri = os.environ.get("SLACK_OAUTH_REDIRECT_URI", "")
+    scopes = os.environ.get("SLACK_OAUTH_SCOPES", "")
+    output = os.environ.get("SLACK_OAUTH_TOKEN_PATH", "")
+    if not all((state_path, client_id, redirect_uri, scopes, output)):
+        raise HTTPException(status_code=503, detail="OAuth not configured")
+    if Path(output).exists():
+        raise HTTPException(status_code=409, detail="Installation already recorded")
+    state_file = Path(state_path)
+    if state_file.exists():
+        raise HTTPException(status_code=409, detail="Installation already pending")
+    # A prior attempt may leave a claim marker. Clear only when starting a new attempt.
+    claim = Path(state_path + ".claimed")
+    if claim.exists():
+        claim.unlink()
+    try:
+        state = create_oauth_state(state_file)
+    except FileExistsError:
+        raise HTTPException(status_code=409, detail="Installation already pending")
+    query = urlencode({"client_id": client_id, "scope": scopes,
+                       "redirect_uri": redirect_uri, "state": state})
+    return "https://slack.com/oauth/v2/authorize?" + query
 
 
 @router.get("/slack/oauth/callback", response_class=PlainTextResponse)
