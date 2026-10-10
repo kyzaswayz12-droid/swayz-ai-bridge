@@ -67,6 +67,16 @@ class PaperAccount:
             raise ValueError("Stale or future quote")
         if not fee_rate.is_finite() or fee_rate < 0:
             raise ValueError("Invalid fee")
+        if not self.limits.max_order_notional.is_finite() or self.limits.max_order_notional <= 0:
+            raise ValueError("Invalid order limit")
+        if not self.limits.max_position_notional.is_finite() or self.limits.max_position_notional <= 0:
+            raise ValueError("Invalid position limit")
+        if self.limits.max_quote_age_seconds <= 0:
+            raise ValueError("Invalid quote age limit")
+        if any(not balance.is_finite() or balance < 0 for balance in self.balances.values()):
+            raise ValueError("Invalid account balances")
+        if any(not qty.is_finite() or qty < 0 for qty in self.positions.values()):
+            raise ValueError("Invalid account positions")
         instrument = order.instrument
         if not instrument.symbol or not instrument.quote_currency or not instrument.contract_multiplier.is_finite() or instrument.contract_multiplier <= 0:
             raise ValueError("Invalid instrument")
