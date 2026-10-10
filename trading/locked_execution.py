@@ -10,6 +10,7 @@ from .quote_policy import validate_quote_for_paper
 from .transactional_ledger import TransactionalPaperLedger, LedgerFill
 from .valuation import value_portfolio
 from .equity_state import read_equity_state
+from .kill_switch import assert_paper_enabled
 
 D = Decimal
 
@@ -43,6 +44,7 @@ def submit_locked(
     try:
         if ledger.conn.execute("SELECT 1 FROM fills WHERE order_id=?", (order.order_id,)).fetchone():
             raise ValueError("Duplicate order")
+        assert_paper_enabled(ledger)
         # The same write transaction protects valuation and subsequent updates.
         for symbol, qty in ledger.conn.execute("SELECT symbol,quantity FROM positions"):
             if D(qty) > 0:
