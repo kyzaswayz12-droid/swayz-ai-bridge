@@ -6,7 +6,7 @@ authenticated; exchange provenance and durable day-rollover are future gates.
 from decimal import Decimal
 from .engine import Order, Quote, RiskLimits
 from .risk import PortfolioRisk
-from .quote_policy import validate_quote_for_paper
+from .quote_policy import validate_quote_for_paper, QuotePolicy
 from .transactional_ledger import TransactionalPaperLedger, LedgerFill
 from .valuation import value_portfolio
 from .equity_state import read_equity_state
@@ -36,10 +36,13 @@ def submit_locked(
     if (not limits.max_order_notional.is_finite() or limits.max_order_notional <= 0
         or not limits.max_position_notional.is_finite() or limits.max_position_notional <= 0):
         raise ValueError("Invalid order limits")
+    if not isinstance(limits.max_quote_age_seconds, (int, float)) or not (0 < limits.max_quote_age_seconds < float("inf")):
+        raise ValueError("Invalid quote age limit")
+    policy = QuotePolicy(max_age_seconds=limits.max_quote_age_seconds)
     quote = quotes.get(instrument.symbol)
     if quote is None:
         raise ValueError("Missing order quote")
-    validate_quote_for_paper(quote, now)
+    validate_quote_for_paper(quote, now, policy)
     ledger.conn.execute("BEGIN IMMEDIATE")
     try:
         if ledger.conn.execute("SELECT 1 FROM fills WHERE order_id=?", (order.order_id,)).fetchone():
@@ -51,7 +54,7 @@ def submit_locked(
                 q = quotes.get(symbol)
                 if q is None:
                     raise ValueError("Missing held-position quote")
-                validate_quote_for_paper(q, now)
+                validate_quote_for_paper(q, now, policy)
         equity, exposure = value_portfolio(
             ledger, quotes=quotes, quote_currency=quote_currency,
             fx_to_base=fx_to_base)
