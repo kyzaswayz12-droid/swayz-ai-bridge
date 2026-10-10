@@ -68,7 +68,7 @@ class PaperAccount:
         if not fee_rate.is_finite() or fee_rate < 0:
             raise ValueError("Invalid fee")
         instrument = order.instrument
-        if not instrument.symbol or not instrument.quote_currency or instrument.contract_multiplier <= 0:
+        if not instrument.symbol or not instrument.quote_currency or not instrument.contract_multiplier.is_finite() or instrument.contract_multiplier <= 0:
             raise ValueError("Invalid instrument")
         price = quote.ask if order.side == "buy" else quote.bid
         notional = price * order.quantity * instrument.contract_multiplier
