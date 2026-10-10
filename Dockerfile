@@ -4,6 +4,7 @@ WORKDIR /srv
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
+COPY trading/ ./trading/
 RUN useradd --system --uid 10001 bridge && mkdir -p /data && chown bridge:bridge /data
 VOLUME ["/data"]
 USER bridge
