@@ -17,8 +17,8 @@ def test_approval_and_delivery_lifecycle(tmp_path):
     o=PublicationOutbox(path)
     assert o.get("pub1").status=="sending"
     assert o.get("pub1").attempt_count==1
-    assert o.mark_sent("pub1")
-    assert not o.mark_sent("pub1")
+    assert o.mark_sent("pub1","telegram-123")
+    assert not o.mark_sent("pub1","telegram-123")
     assert o.get("pub1").status=="sent"
     o.close()
 
