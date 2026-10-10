@@ -19,3 +19,10 @@ def test_dashboard_api_returns_paper_only(tmp_path):
 def test_no_trading_endpoint(tmp_path):
     client=TestClient(create_dashboard_app(str(tmp_path/"paper.sqlite3")))
     assert client.post("/api/orders",json={}).status_code==404
+
+def test_dashboard_html_served(tmp_path):
+    client=TestClient(create_dashboard_app(str(tmp_path/"paper.sqlite3")))
+    response=client.get("/")
+    assert response.status_code==200
+    assert "PAPER SIMULATION" in response.text
+    assert "/api/paper-summary" in response.text
