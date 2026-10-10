@@ -60,6 +60,8 @@ def test_two_connections_cannot_both_exceed_exposure(tmp_path):
 def test_missing_reference_state_rolls_back():
     ledger=TransactionalPaperLedger()
     ledger.deposit_opening_cash("USD",D("1000"))
+    initialise_kill_switch(ledger)
+    set_kill_switch(ledger,False)
     with pytest.raises(ValueError,match="reference state"):
         submit(ledger,"one","1")
     assert ledger.balance("USD")==D("1000")
