@@ -19,5 +19,5 @@ def test_reconcile_matching_paper_account():
     a.balances["USD"]+=D("1")
     changed=reconcile(a,j,{"USD":D("10000")})
     assert not changed.consistent
-    assert changed.balance_differences["USD"]=="1"
+    assert D(changed.balance_differences["USD"])==D("1")
     j.close()
