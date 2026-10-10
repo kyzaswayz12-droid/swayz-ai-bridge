@@ -25,6 +25,8 @@ class TransactionalPaperLedger:
             currency TEXT PRIMARY KEY, amount TEXT NOT NULL)""")
         self.conn.execute("""CREATE TABLE IF NOT EXISTS positions (
             symbol TEXT PRIMARY KEY, quantity TEXT NOT NULL)""")
+        self.conn.execute("""CREATE TABLE IF NOT EXISTS instrument_registry (
+            symbol TEXT PRIMARY KEY, quote_currency TEXT NOT NULL)""")
         self.conn.execute("""CREATE TABLE IF NOT EXISTS fills (
             order_id TEXT PRIMARY KEY, symbol TEXT NOT NULL, side TEXT NOT NULL,
             quantity TEXT NOT NULL, price TEXT NOT NULL, fee TEXT NOT NULL)""")
@@ -62,6 +64,19 @@ class TransactionalPaperLedger:
         try:
             if self.conn.execute("SELECT 1 FROM fills WHERE order_id=?",(fill.order_id,)).fetchone():
                 raise ValueError("Duplicate order")
+            registered=self.conn.execute(
+                "SELECT quote_currency FROM instrument_registry WHERE symbol=?",
+                (fill.symbol,)).fetchone()
+            if registered and registered[0] != currency:
+                raise ValueError("Instrument currency mismatch")
+            if not registered:
+                # Existing holdings without a registry record are ambiguous:
+                # refuse migration instead of guessing their currency.
+                if self.position(fill.symbol) != 0:
+                    raise ValueError("Existing position missing registered currency")
+                self.conn.execute(
+                    "INSERT INTO instrument_registry(symbol,quote_currency) VALUES(?,?)",
+                    (fill.symbol,currency))
             cash=self.balance(currency)
             position=self.position(fill.symbol)
             notional=fill.quantity*fill.price
