@@ -64,6 +64,15 @@ def submit_locked(
         # Compare risk against the previous high-water mark. A new high is
         # recorded only after risk checks succeed and in the same transaction.
         observed_peak = max(peak, equity)
+        registered=ledger.conn.execute(
+            "SELECT quote_currency FROM instrument_registry WHERE symbol=?",
+            (instrument.symbol,)).fetchone()
+        if registered and registered[0] != instrument.quote_currency:
+            raise ValueError("Instrument currency mismatch")
+        if registered and quote_currency.get(instrument.symbol) != registered[0]:
+            raise ValueError("Instrument currency mismatch")
+        if not registered and quote_currency.get(instrument.symbol) != instrument.quote_currency:
+            raise ValueError("Instrument currency mismatch")
         price = quote.ask if order.side == "buy" else quote.bid
         notional = price * order.quantity
         if notional > limits.max_order_notional:
@@ -91,6 +100,10 @@ def submit_locked(
             raise ValueError("Insufficient cash")
         fill = LedgerFill(order.order_id, instrument.symbol, order.side,
                           order.quantity, price, fee)
+        if not registered:
+            ledger.conn.execute(
+                "INSERT INTO instrument_registry(symbol,quote_currency) VALUES(?,?)",
+                (instrument.symbol,instrument.quote_currency))
         ledger.conn.execute("INSERT INTO fills VALUES(?,?,?,?,?,?)",
             (fill.order_id, fill.symbol, fill.side,
              str(fill.quantity), str(fill.price), str(fill.fee)))
