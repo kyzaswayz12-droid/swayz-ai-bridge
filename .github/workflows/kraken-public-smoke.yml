@@ -1,0 +1,36 @@
+name: Kraken public quote smoke test
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-quote:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install minimal dependencies
+        run: python -m pip install httpx
+      - name: Fetch one public Kraken quote
+        run: |
+          python - <<'PY'
+          import asyncio, time
+          import httpx
+          from trading.kraken_data import fetch_kraken_quote
+          from trading.quote_policy import validate_quote_for_paper
+          async def main():
+              async with httpx.AsyncClient(timeout=10) as client:
+                  now=time.time()
+                  quote=await fetch_kraken_quote(client,pair="XBTUSD",observed_at=now)
+                  validate_quote_for_paper(quote,time.time())
+                  print("Public quote accepted:",quote.bid > 0 and quote.ask >= quote.bid)
+                  print("Pair: XBTUSD")
+                  print("No trading credentials or orders used")
+          asyncio.run(main())
+          PY

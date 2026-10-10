@@ -1,0 +1,41 @@
+name: Public market connectivity (non-blocking)
+
+on:
+  push:
+    branches: [feature/swayz-trading-foundation]
+    paths:
+      - "trading/kraken_data.py"
+      - "trading/quote_policy.py"
+      - ".github/workflows/market-connectivity.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-market-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install public-data client
+        run: python -m pip install httpx
+      - name: One read-only Kraken request
+        run: |
+          python - <<'PY'
+          import asyncio, time
+          import httpx
+          from trading.kraken_data import fetch_kraken_quote
+          from trading.quote_policy import validate_quote_for_paper
+          async def main():
+              async with httpx.AsyncClient(timeout=10) as client:
+                  quote=await fetch_kraken_quote(client,pair="XBTUSD",observed_at=time.time())
+                  validate_quote_for_paper(quote,time.time())
+                  print("Kraken public quote validated")
+                  print("No private credentials or orders used")
+          asyncio.run(main())
+          PY

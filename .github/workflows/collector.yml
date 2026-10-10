@@ -1,0 +1,27 @@
+name: Collector Docker validation
+
+on:
+  push:
+    branches: [feature/swayz-trading-foundation]
+  pull_request:
+    paths:
+      - "Dockerfile.collector"
+      - "trading/**"
+      - ".github/workflows/collector.yml"
+
+jobs:
+  collector:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build collector image
+        run: docker build -f Dockerfile.collector -t swayz-market-collector:ci .
+      - name: Verify CLI without external network
+        run: |
+          docker run --rm --network none swayz-market-collector:ci --help | grep -q "Collect one public Kraken quote"
+      - name: Verify invalid pair fails without network
+        run: |
+          if docker run --rm --network none swayz-market-collector:ci --pair INVALID --state-db /tmp/state.db --archive-db /tmp/quotes.db; then
+            echo "Unexpected success" >&2
+            exit 1
+          fi

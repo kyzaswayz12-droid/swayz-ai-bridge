@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from trading.team import collaborate
 from app.core import (
     GENERIC_ERROR_TEXT, MAX_REPLY_CHARS, CallModel, Challenge, MissingConfig,
     Reply, Settings, Store, handle_event, valid_signature,
@@ -99,7 +100,13 @@ async def post_message(channel: str, thread_ts: str, text: str) -> None:
 
 async def process_message(channel: str, thread_ts: str, provider: str, prompt: str) -> None:
     try:
-        text = await generate(provider, prompt)
+        if provider == "team":
+            report = await collaborate(prompt, generate)
+            text = ("*ChatGPT proposal*\\n" + report.proposal[:1400] +
+                    "\\n\\n*Claude review*\\n" + report.review[:1400] +
+                    "\\n\\n_Status: review required; no trades or deployments performed._")
+        else:
+            text = await generate(provider, prompt)
     except Exception as exc:
         logger.error("model call failed provider=%s error=%s", provider, describe_error(exc))
         text = GENERIC_ERROR_TEXT

@@ -17,15 +17,15 @@ DEDUP_RETENTION_SECONDS = 7 * 24 * 3600
 USAGE_RETENTION_DAYS = 30
 
 GENERIC_ERROR_TEXT = "Sorry, something went wrong handling that request. Please try again later."
-EMPTY_PROMPT_TEXT = "Please put your question after the prefix, e.g. `chatgpt: your question` or `claude: your question`."
+EMPTY_PROMPT_TEXT = "Please put your question after the prefix, e.g. `chatgpt: your question` or `claude: your question` or `team: your goal`."
 TOO_LONG_TEXT = f"That message is too long (maximum {MAX_PROMPT_CHARS} characters)."
 LIMIT_TEXTS = {
     "user_limit": "You have reached your daily request limit. Please try again tomorrow (UTC).",
     "total_limit": "The daily request limit for this channel has been reached. Please try again tomorrow (UTC).",
     "disabled": "AI requests are disabled until the project owner enables them.",
 }
-_COMMAND_RE = re.compile(r"^\s*(chatgpt|claude)\s*:\s*(.*)$", re.IGNORECASE | re.DOTALL)
-_PROVIDERS = {"chatgpt": "openai", "claude": "anthropic"}
+_COMMAND_RE = re.compile(r"^\s*(chatgpt|claude|team)\s*:\s*(.*)$", re.IGNORECASE | re.DOTALL)
+_PROVIDERS = {"chatgpt": "openai", "claude": "anthropic", "team": "team"}
 
 
 class MissingConfig(RuntimeError):
@@ -121,7 +121,9 @@ class Store:
             )
             return cursor.rowcount == 1
 
-    def try_consume(self, user_id: str, now: float, per_user_limit: int, total_limit: int) -> Optional[str]:
+    def try_consume(self, user_id: str, now: float, per_user_limit: int, total_limit: int, units: int = 1) -> Optional[str]:
+        if units < 1:
+            raise ValueError("Invalid usage units")
         day = time.strftime("%Y-%m-%d", time.gmtime(now))
         oldest_day = time.strftime("%Y-%m-%d", time.gmtime(now - USAGE_RETENTION_DAYS * 86400))
         with self._lock:
@@ -132,15 +134,15 @@ class Store:
                     "SELECT COALESCE(SUM(count), 0), COALESCE(SUM(CASE WHEN user_id = ? THEN count ELSE 0 END), 0) "
                     "FROM usage WHERE day = ?", (user_id, day)
                 ).fetchone()
-                if mine >= per_user_limit:
+                if mine + units > per_user_limit:
                     reason = "user_limit"
-                elif total >= total_limit:
+                elif total + units > total_limit:
                     reason = "total_limit"
                 else:
                     reason = None
                     self._conn.execute(
-                        "INSERT INTO usage (day, user_id, count) VALUES (?, ?, 1) "
-                        "ON CONFLICT(day, user_id) DO UPDATE SET count = count + 1", (day, user_id)
+                        "INSERT INTO usage (day, user_id, count) VALUES (?, ?, ?) "
+                        "ON CONFLICT(day, user_id) DO UPDATE SET count = count + excluded.count", (day, user_id, units)
                     )
                 self._conn.execute("COMMIT")
             except BaseException:
@@ -209,7 +211,7 @@ def handle_event(payload: object, settings: Settings, store: Store, now: float) 
         return Reply(channel, thread_ts, TOO_LONG_TEXT)
     if settings.per_user_limit == 0 or settings.total_limit == 0:
         return Reply(channel, thread_ts, LIMIT_TEXTS["disabled"])
-    limit_hit = store.try_consume(user, now, settings.per_user_limit, settings.total_limit)
+    limit_hit = store.try_consume(user, now, settings.per_user_limit, settings.total_limit, 2 if command.provider == "team" else 1)
     if limit_hit:
         return Reply(channel, thread_ts, LIMIT_TEXTS[limit_hit])
     return CallModel(channel, thread_ts, command.provider, command.prompt)
