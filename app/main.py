@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 
 import httpx
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
-from app.core import (
+from trading.team import collaborate\nfrom app.core import (
     GENERIC_ERROR_TEXT, MAX_REPLY_CHARS, CallModel, Challenge, MissingConfig,
     Reply, Settings, Store, handle_event, valid_signature,
 )
