@@ -58,12 +58,9 @@ def submit_locked(
         day_start, peak = read_equity_state(ledger)
         if not all(v.is_finite() and v > 0 for v in (day_start, peak)):
             raise ValueError("Invalid equity reference state")
-        # Record the current high-water mark under the same transaction lock.
-        # This update rolls back if any subsequent order check fails.
-        peak = max(peak, equity)
-        ledger.conn.execute(
-            "UPDATE paper_equity_state SET peak_equity=? WHERE id=1",
-            (str(peak),))
+        # Compare risk against the previous high-water mark. A new high is
+        # recorded only after risk checks succeed and in the same transaction.
+        observed_peak = max(peak, equity)
         price = quote.ask if order.side == "buy" else quote.bid
         notional = price * order.quantity
         if notional > limits.max_order_notional:
@@ -81,6 +78,9 @@ def submit_locked(
             starting_equity=day_start, equity=equity,
             peak_equity=peak, gross_exposure=exposure,
             proposed_notional=proposed, kill_switch=kill_switch)
+        ledger.conn.execute(
+            "UPDATE paper_equity_state SET peak_equity=? WHERE id=1",
+            (str(observed_peak),))
         fee = notional * fee_rate
         next_cash = ledger.balance(instrument.quote_currency) + (
             -notional - fee if order.side == "buy" else notional - fee)
