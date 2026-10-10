@@ -38,8 +38,15 @@ def value_portfolio(ledger: TransactionalPaperLedger, *,
         if qty==0:
             continue
         quote=quotes.get(symbol)
-        currency=quote_currency.get(symbol)
-        rate=fx_to_base.get(currency) if currency else None
+        row=ledger.conn.execute(
+            "SELECT quote_currency FROM instrument_registry WHERE symbol=?",
+            (symbol,)).fetchone()
+        if not row:
+            raise ValueError("Missing registered instrument currency")
+        currency=row[0]
+        if quote_currency.get(symbol) != currency:
+            raise ValueError("Instrument currency mismatch")
+        rate=fx_to_base.get(currency)
         if (quote is None or not quote.bid.is_finite() or quote.bid <= 0
             or rate is None or not rate.is_finite() or rate <= 0):
             raise ValueError("Missing position quote or FX rate")
