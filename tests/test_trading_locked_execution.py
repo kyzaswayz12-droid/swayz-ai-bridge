@@ -35,10 +35,14 @@ def test_locked_execution_derives_exposure_from_ledger():
 def test_two_connections_cannot_both_exceed_exposure(tmp_path):
     path=str(tmp_path/"locked.db")
     first=setup(path)
-    second=TransactionalPaperLedger(path)
+    def worker(oid):
+        connection=TransactionalPaperLedger(path)
+        try:
+            return submit(connection,oid,"3")
+        finally:
+            connection.close()
     with ThreadPoolExecutor(max_workers=2) as pool:
-        futures=[pool.submit(submit, ledger, oid, "3")
-                 for ledger,oid in ((first,"a"),(second,"b"))]
+        futures=[pool.submit(worker,oid) for oid in ("a","b")]
         outcomes=[]
         for f in futures:
             try:
@@ -49,7 +53,6 @@ def test_two_connections_cannot_both_exceed_exposure(tmp_path):
     assert first.position("BTC/USD")==D("3")
     assert first.conn.execute("SELECT COUNT(*) FROM fills").fetchone()[0]==1
     first.close()
-    second.close()
 
 def test_missing_reference_state_rolls_back():
     ledger=TransactionalPaperLedger()
