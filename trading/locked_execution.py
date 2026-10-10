@@ -1,7 +1,7 @@
 """Serialised paper-only execution: valuation, risk, fill in one SQLite transaction.
 
 No broker connections. Quotes and FX rates are caller supplied, not independently
-authenticated; freshness, reference equity and durable kill-switch are future gates.
+authenticated; exchange provenance and durable day-rollover are future gates.
 """
 from decimal import Decimal
 from .engine import Order, Quote, RiskLimits
@@ -56,6 +56,14 @@ def submit_locked(
             ledger, quotes=quotes, quote_currency=quote_currency,
             fx_to_base=fx_to_base)
         day_start, peak = read_equity_state(ledger)
+        if not all(v.is_finite() and v > 0 for v in (day_start, peak)):
+            raise ValueError("Invalid equity reference state")
+        # Record the current high-water mark under the same transaction lock.
+        # This update rolls back if any subsequent order check fails.
+        peak = max(peak, equity)
+        ledger.conn.execute(
+            "UPDATE paper_equity_state SET peak_equity=? WHERE id=1",
+            (str(peak),))
         price = quote.ask if order.side == "buy" else quote.bid
         notional = price * order.quantity
         if notional > limits.max_order_notional:
