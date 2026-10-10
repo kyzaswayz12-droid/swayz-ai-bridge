@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Swayz Trading | Paper Dashboard</title>
+<style>
+:root{font-family:system-ui,-apple-system,sans-serif;color:#eef2ff;background:#0b1020}
+*{box-sizing:border-box}body{margin:0}main{max-width:1000px;margin:auto;padding:24px}
+header{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+h1{font-size:clamp(28px,5vw,42px);margin:26px 0 8px}
+p{line-height:1.6;color:#b7c2d8}
+.pill{padding:8px 12px;border:1px solid #4b5875;border-radius:30px;color:#a8e3c4;font-size:12px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin:26px 0}
+.card{border:1px solid #303d58;background:#141e33;border-radius:16px;padding:20px}
+.label{font-size:13px;color:#aab8d0}.value{font-size:30px;font-weight:700;margin-top:8px}
+.notice{border-left:3px solid #d6a657;padding:12px 18px;background:#1e2534}
+footer{font-size:12px;color:#8d9ab2;margin:42px 0}
+</style>
+</head>
+<body>
+<main>
+<header><strong>SWAYZ / TRADING</strong><span class="pill">PAPER SIMULATION</span></header>
+<h1>Trading activity overview</h1>
+<p>Read-only research dashboard. All activity is simulated; no real-money trades are displayed.</p>
+<section class="grid" aria-label="Paper activity">
+<div class="card"><div class="label">Simulation status</div><div class="value" id="mode">Offline</div></div>
+<div class="card"><div class="label">Paper fills recorded</div><div class="value" id="fills">—</div></div>
+<div class="card"><div class="label">Reported simulation fees</div><div class="value" id="fees">—</div></div>
+<div class="card"><div class="label">Instruments tracked</div><div class="value" id="instruments">—</div></div>
+</section>
+<div class="notice"><strong>Important:</strong> Simulated results are not verified investment performance and do not predict future returns. This site does not provide trade execution.</div>
+<p id="status" role="status">No verified dashboard data loaded.</p>
+<footer>No login, payments, broker controls or social publishing are available in this prototype.</footer>
+</main>
+<script>
+(async()=>{
+try{
+const response=await fetch("./paper-summary.json",{cache:"no-store"});
+if(!response.ok)throw new Error("Data unavailable");
+const data=await response.json();
+if(data.mode!=="PAPER_SIMULATION"||data.performance_verified!==false)throw new Error("Invalid data");
+document.getElementById("mode").textContent="Paper";
+document.getElementById("fills").textContent=String(data.fill_count);
+document.getElementById("fees").textContent=String(data.total_reported_fees);
+document.getElementById("instruments").textContent=String(data.instruments.length);
+document.getElementById("status").textContent="Simulation data loaded. Not verified investment performance.";
+}catch(error){document.getElementById("status").textContent="No simulation data available. The dashboard is offline.";}
+})();
+</script>
+</body>
+</html>
