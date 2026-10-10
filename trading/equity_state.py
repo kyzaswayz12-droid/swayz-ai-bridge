@@ -1,4 +1,5 @@
 """Persistent paper equity reference points for risk evaluation."""
+import sqlite3
 from decimal import Decimal
 from .transactional_ledger import TransactionalPaperLedger
 
@@ -17,8 +18,11 @@ def ensure_equity_state(ledger: TransactionalPaperLedger, initial_equity: Decima
         (str(initial_equity),str(initial_equity)))
 
 def read_equity_state(ledger: TransactionalPaperLedger) -> tuple[Decimal,Decimal]:
-    row=ledger.conn.execute(
-        "SELECT day_start_equity,peak_equity FROM paper_equity_state WHERE id=1").fetchone()
+    try:
+        row=ledger.conn.execute(
+            "SELECT day_start_equity,peak_equity FROM paper_equity_state WHERE id=1").fetchone()
+    except sqlite3.OperationalError as exc:
+        raise ValueError("Paper equity reference state missing") from exc
     if not row:
         raise ValueError("Paper equity reference state missing")
     return D(row[0]),D(row[1])
