@@ -4,6 +4,7 @@ import pytest
 from trading.engine import Instrument, Market, Order, Quote
 from trading.transactional_ledger import TransactionalPaperLedger
 from trading.equity_state import ensure_equity_state
+from trading.kill_switch import initialise_kill_switch,set_kill_switch
 from trading.locked_execution import submit_locked
 
 BTC = Instrument("BTC/USD", Market.CRYPTO, "USD")
@@ -15,6 +16,8 @@ def setup(path=":memory:", opening=D("1000")):
     ledger=TransactionalPaperLedger(path)
     ledger.deposit_opening_cash("USD",opening)
     ensure_equity_state(ledger,opening)
+    initialise_kill_switch(ledger)
+    set_kill_switch(ledger,False)
     return ledger
 
 def submit(ledger, order_id, qty):
