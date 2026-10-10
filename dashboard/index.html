@@ -37,7 +37,7 @@ footer{font-size:12px;color:#8d9ab2;margin:42px 0}
 <script>
 (async()=>{
 try{
-const response=await fetch("./paper-summary.json",{cache:"no-store"});
+const response=await fetch("/api/paper-summary",{cache:"no-store"});
 if(!response.ok)throw new Error("Data unavailable");
 const data=await response.json();
 if(data.mode!=="PAPER_SIMULATION"||data.performance_verified!==false)throw new Error("Invalid data");
