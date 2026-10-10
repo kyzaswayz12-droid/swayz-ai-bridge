@@ -3,6 +3,7 @@
 No authentication or privileged endpoints. Serve only behind deliberate routing.
 """
 from pathlib import Path
+import sqlite3
 from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from .dashboard import paper_summary, public_payload
@@ -27,7 +28,7 @@ def create_dashboard_app(journal_path: str) -> FastAPI:
     def summary():
         try:
             journal=PaperJournal(journal_path)
-        except (OSError, RuntimeError, __import__("sqlite3").Error):
+        except (OSError, RuntimeError, sqlite3.Error):
             raise HTTPException(status_code=503, detail="Paper data unavailable")
         try:
             return public_payload(paper_summary(journal))
