@@ -1,0 +1,33 @@
+name: Dashboard Docker validation
+
+on:
+  push:
+    branches: [feature/swayz-trading-foundation]
+  pull_request:
+    paths:
+      - "Dockerfile.dashboard"
+      - "dashboard/**"
+      - "trading/**"
+      - ".github/workflows/dashboard.yml"
+
+jobs:
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build dashboard image
+        run: docker build -f Dockerfile.dashboard -t swayz-paper-dashboard:ci .
+      - name: Start dashboard
+        run: |
+          docker run -d --name paper-dashboard -p 127.0.0.1:18080:8080 swayz-paper-dashboard:ci
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:18080/health; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:18080/health
+          curl -fsS http://127.0.0.1:18080/ | grep -q "PAPER SIMULATION"
+          curl -fsS http://127.0.0.1:18080/api/paper-summary | grep -q "PAPER_SIMULATION"
+          test "$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:18080/api/orders)" = "404"
+      - name: Show logs on failure
+        if: failure()
+        run: docker logs paper-dashboard || true
