@@ -122,7 +122,9 @@ class Store:
             return cursor.rowcount == 1
 
     def try_consume(self, user_id: str, now: float, per_user_limit: int, total_limit: int, units: int = 1) -> Optional[str]:
-        if units < 1:\n            raise ValueError("Invalid usage units")\n        day = time.strftime("%Y-%m-%d", time.gmtime(now))
+        if units < 1:
+            raise ValueError("Invalid usage units")
+        day = time.strftime("%Y-%m-%d", time.gmtime(now))
         oldest_day = time.strftime("%Y-%m-%d", time.gmtime(now - USAGE_RETENTION_DAYS * 86400))
         with self._lock:
             self._conn.execute("BEGIN IMMEDIATE")
