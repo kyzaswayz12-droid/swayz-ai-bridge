@@ -14,7 +14,7 @@ class Client:
 
 def test_historical_fetch_is_public_and_read_only():
     c=Client()
-    bars=asyncio.run(fetch_kraken_ohlc(c,pair="XBTUSD",interval=60))
+    bars=asyncio.run(fetch_kraken_ohlc(c,pair="XBTUSD",interval=60,observed_at=4000))
     assert len(bars)==1
     assert c.calls[0][0].endswith("/0/public/OHLC")
     assert c.calls[0][1]["params"]["interval"]==60
