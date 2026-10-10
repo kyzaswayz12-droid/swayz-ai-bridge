@@ -26,6 +26,7 @@ class PublicationOutbox:
                 text TEXT NOT NULL,
                 status TEXT NOT NULL CHECK(status IN ('draft','approved','sending','sent','failed')),
                 approved_by TEXT,
+                external_id TEXT,
                 attempt_count INTEGER NOT NULL DEFAULT 0,
                 updated_at REAL NOT NULL
             )""")
@@ -59,12 +60,14 @@ class PublicationOutbox:
                 (time.time(),publication_id))
             return result.rowcount == 1
 
-    def mark_sent(self, publication_id: str) -> bool:
+    def mark_sent(self, publication_id: str, external_id: str) -> bool:
+        if not external_id:
+            raise ValueError("External delivery receipt required")
         with self.conn:
             result=self.conn.execute(
-                "UPDATE publication_outbox SET status='sent', updated_at=? "
+                "UPDATE publication_outbox SET status='sent', external_id=?, updated_at=? "
                 "WHERE publication_id=? AND status='sending'",
-                (time.time(),publication_id))
+                (external_id,time.time(),publication_id))
             return result.rowcount == 1
 
     def mark_failed(self, publication_id: str) -> bool:
