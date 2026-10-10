@@ -13,6 +13,10 @@ class PortfolioRisk:
     def validate(self, *, starting_equity: Decimal, equity: Decimal,
                  peak_equity: Decimal, gross_exposure: Decimal,
                  proposed_notional: Decimal, kill_switch: bool = False) -> None:
+        limits = (self.max_daily_loss_fraction, self.max_drawdown_fraction,
+                  self.max_gross_exposure_fraction)
+        if not all(x.is_finite() and x > 0 and x <= 1 for x in limits):
+            raise ValueError("Invalid risk configuration")
         values = (starting_equity, equity, peak_equity, gross_exposure, proposed_notional)
         if not all(v.is_finite() for v in values):
             raise ValueError("Non-finite portfolio value")
