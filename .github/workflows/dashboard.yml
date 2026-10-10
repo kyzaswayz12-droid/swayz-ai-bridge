@@ -19,7 +19,11 @@ jobs:
         run: docker build -f Dockerfile.dashboard -t swayz-paper-dashboard:ci .
       - name: Start dashboard
         run: |
-          docker run -d --name paper-dashboard -p 127.0.0.1:18080:8080 swayz-paper-dashboard:ci
+          mkdir -p "$RUNNER_TEMP/paper"
+          python -c 'import sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute("CREATE TABLE paper_events(sequence INTEGER PRIMARY KEY AUTOINCREMENT,event_id TEXT NOT NULL UNIQUE,kind TEXT NOT NULL,payload TEXT NOT NULL,created_at REAL NOT NULL)"); c.commit(); c.close()' "$RUNNER_TEMP/paper/paper.sqlite3"
+          chmod 755 "$RUNNER_TEMP/paper"
+          chmod 644 "$RUNNER_TEMP/paper/paper.sqlite3"
+          docker run -d --name paper-dashboard -p 127.0.0.1:18080:8080 -v "$RUNNER_TEMP/paper:/data:ro" swayz-paper-dashboard:ci
           for i in $(seq 1 30); do
             if curl -fsS http://127.0.0.1:18080/health; then break; fi
             sleep 1
