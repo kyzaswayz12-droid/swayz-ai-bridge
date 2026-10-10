@@ -38,3 +38,19 @@ def test_settings():
     s=Settings.from_env({"ALLOWED_USER_IDS":"U1,U2","ALLOWED_CHANNEL_ID":"C1","DAILY_LIMIT_TOTAL":"0"})
     assert s.allowed_users==frozenset({"U1","U2"})
     assert s.total_limit==0
+
+def test_team_command_reserves_two_units():
+    s=Store()
+    cfg=settings(per_user_limit=3,total_limit=3)
+    a=handle_event(event(text="team: Research a strategy",ts="team-1"),cfg,s,1000)
+    assert isinstance(a,CallModel) and a.provider=="team"
+    b=handle_event(event(text="chatgpt: hello",ts="single-2"),cfg,s,1000)
+    assert isinstance(b,CallModel)
+    c=handle_event(event(text="team: Another idea",ts="team-3"),cfg,s,1000)
+    assert c==Reply("C1","team-3",LIMIT_TEXTS["user_limit"])
+
+def test_team_requires_two_available_units():
+    s=Store()
+    cfg=settings(per_user_limit=1,total_limit=1)
+    result=handle_event(event(text="team: Check this",ts="team-1"),cfg,s,1000)
+    assert result==Reply("C1","team-1",LIMIT_TEXTS["user_limit"])
