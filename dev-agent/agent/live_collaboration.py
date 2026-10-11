@@ -44,6 +44,7 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
     keys=load_provider_keys(secrets)
     ledger=BudgetStore(str(budget_db))
     request_ids=[]
+    reserved_total=Decimal("0")
     usage=[]
     # Pricing is intentionally not inferred from token counts here.
     def call(provider,model,instruction,prompt,max_tokens):
@@ -61,6 +62,8 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
         reserved=ledger.reserve(request_id,holds[provider],LIMITS,datetime.now(timezone.utc))
         if reserved is not True:
             raise PermissionError("Budget reservation refused")
+        nonlocal reserved_total
+        reserved_total+=holds[provider]
         request_ids.append(request_id)
         raw=transport(provider,payload,key)
         if provider=="openai":
@@ -90,7 +93,7 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
                 "reviewer_approved":result.approved_by_reviewer,
                 "findings":list(result.findings),"request_ids":request_ids,
                 "token_usage":usage,
-                "reserved_usd":str(sum((holds[p] for p in ["openai","anthropic"][:len(request_ids)]),Decimal("0"))),
+                "reserved_usd":str(reserved_total),
                 "github_writes":0,"live_trading":False}
     finally:
         ledger.close()
