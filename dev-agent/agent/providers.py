@@ -47,6 +47,8 @@ def openai_response(body: bytes) -> ModelResponse:
 
 def anthropic_response(body: bytes) -> ModelResponse:
     data=_parse_json(body)
+    if data.get("stop_reason") not in (None,"end_turn"):
+        raise ValueError("Incomplete Claude response; no review approval")
     pieces=[x.get("text","") for x in data.get("content",[])
             if isinstance(x,dict) and x.get("type")=="text"]
     usage=data.get("usage",{})
