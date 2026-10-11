@@ -5,6 +5,19 @@ from pathlib import Path
 from agent.live_collaboration import run_once
 from agent.emergency_stop import EmergencyStop
 
+def cards(folder):
+    p=Path(folder)
+    common={"verified_by_owner":True,"verified_on":"2026-10-11",
+            "expires_on":"2026-10-18","source_url":"https://example.com/pricing"}
+    a={**common,"provider":"openai","model":"gpt-5-mini",
+       "input_per_million_usd":"0.25","output_per_million_usd":"2.00"}
+    b={**common,"provider":"anthropic","model":"claude-haiku-4-5-20251001",
+       "input_per_million_usd":"1.00","output_per_million_usd":"5.00"}
+    (p/"openai-rates.json").write_text(json.dumps(a))
+    (p/"claude-rates.json").write_text(json.dumps(b))
+    return p/"openai-rates.json",p/"claude-rates.json"
+
+
 class LiveCollaborationTests(unittest.TestCase):
     def test_disabled_mode_has_no_side_effects(self):
         with tempfile.TemporaryDirectory() as d:
@@ -21,6 +34,7 @@ class LiveCollaborationTests(unittest.TestCase):
             secrets.chmod(0o600)
             stop=Path(d)/"stop.db"
             EmergencyStop(str(stop)).close()
+            a,b=cards(d)
             calls=[]
             def transport(provider,payload,key):
                 calls.append(provider)
@@ -36,7 +50,7 @@ class LiveCollaborationTests(unittest.TestCase):
             result=run_once("Improve validation",secrets=secrets,
                 budget_db=Path(d)/"budget.db",control_db=stop,
                 openai_model="gpt-5-mini",claude_model="claude-haiku-4-5-20251001",execute=True,
-                transport=transport)
+                transport=transport,openai_rate_card=a,claude_rate_card=b)
             self.assertEqual(calls,["openai","anthropic"])
             self.assertEqual(result["state"],"approval_required")
             self.assertGreater(float(result["reserved_usd"]),0)
@@ -68,7 +82,7 @@ class LiveCollaborationTests(unittest.TestCase):
                 run_once("Check tests",secrets=secrets,
                     budget_db=Path(d)/"budget.db",control_db=stop,
                     openai_model="gpt-5-mini",claude_model="claude-haiku-4-5-20251001",execute=True,
-                    transport=transport)
+                    transport=transport,openai_rate_card=a,claude_rate_card=b)
             self.assertEqual(calls,["openai"])
             import sqlite3
             with sqlite3.connect(Path(d)/"budget.db") as db:
