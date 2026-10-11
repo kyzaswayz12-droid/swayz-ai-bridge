@@ -1,26 +1,36 @@
-# Swayz Autonomous Development Agent
+# Swayz Autonomous Development Agent — staging
 
-Development branch for the separately hosted Swayz development coordinator.
+This directory contains the first integrated, **offline-only** deployment
+foundation for Droplet 2. It does not call AI providers or GitHub write APIs.
 
-## Intended deployment
-- Host: dedicated Swayz development Droplet
-- User: non-root `swayzdev`
-- App directory: `/home/swayzdev/swayz-agent/app`
-- Source repository: `/home/swayzdev/swayz-agent/workspace/swayz-ai-bridge`
-- Python: 3.12 virtual environment at `/home/swayzdev/swayz-agent/.venv`
+## Read-only installation smoke test
 
-## Current state
-The consolidated agent source and tests are still in the offline checkpoint
-`swayz_dev_agent_worker_preflight.zip` and are **not yet committed here**.
-This branch is a staging target, not an installable release.
+From the repository root on the non-root `swayzdev` account:
 
-## Deployment gates
-1. Import and review the actual source and tests from the checkpoint.
-2. Run the full Python suite on this branch in CI.
-3. Run Docker isolation checks on the dedicated Droplet.
-4. Configure authenticated GitHub access restricted to development branches.
-5. Configure provider API credentials via secret storage, with cost caps.
-6. Prove one bounded OpenAI -> test -> Claude -> draft PR cycle.
-7. Test emergency stop, restart recovery and reporting.
+```bash
+cd dev-agent
+python3 -m unittest discover -s tests -v
+python3 -m agent --data-dir ~/swayz-agent/data preflight
+python3 -m agent --data-dir ~/swayz-agent/data status
+```
 
-No live trading, automated merging, or unattended operation is authorised.
+The first two commands should succeed without credentials or API charges.
+The status command should say `not_initialized` until a task database exists.
+
+## Safety status
+
+- All external actions disabled in `Policy`.
+- SQLite task state and audit history implemented.
+- Daily estimated cost reservations implemented but **not** a substitute
+  for provider-side billing limits.
+- No live model dispatch, GitHub mutation, Docker test execution or scheduler.
+- No trading broker access, real-money execution or production deployment.
+
+## Next integration gates
+
+1. Import and independently test remaining reviewed agent modules.
+2. Wire authenticated model transports with server-side secret storage.
+3. Verify Docker sandbox isolation on a dedicated test worker.
+4. Add GitHub App least-privilege branch access and draft PR creation.
+5. Verify crash recovery, cost reconciliation and emergency stop.
+6. Activate only after a bounded end-to-end test and owner approval.
