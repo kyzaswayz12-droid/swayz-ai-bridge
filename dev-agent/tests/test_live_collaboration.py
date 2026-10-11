@@ -52,6 +52,7 @@ class LiveCollaborationTests(unittest.TestCase):
                 openai_model="gpt-5-mini",claude_model="claude-haiku-4-5-20251001",execute=True,
                 transport=transport,openai_rate_card=a,claude_rate_card=b)
             self.assertEqual(calls,["openai","anthropic"])
+            self.assertEqual(len(list((Path(d)/"checkpoints").glob("*.json"))),1)
             self.assertEqual(result["state"],"approval_required")
             self.assertGreater(float(result["reserved_usd"]),0)
             self.assertLess(float(result["reserved_usd"]),0.10)
