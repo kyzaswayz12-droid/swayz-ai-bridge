@@ -29,8 +29,10 @@ class FailedReviewCheckpointTests(unittest.TestCase):
                          transport=transport,openai_rate_card=a,claude_rate_card=b,
                          checkpoint_dir=root/"checkpoints")
             self.assertEqual(calls,["openai","anthropic"])
-            files=list((root/"checkpoints").glob("*.json"))
+            files=[p for p in (root/"checkpoints").glob("*.json") if not p.name.endswith(".failure.json")]
             self.assertEqual(len(files),1)
             record=json.loads(files[0].read_text())
+            failure=root/"checkpoints"/(record["proposal_sha256"]+".failure.json")
+            self.assertEqual(json.loads(failure.read_text())["reason"],"review_invalid_json")
             self.assertEqual(record["proposal"],"Propose tests for risk limits")
             self.assertEqual(record["review_state"],"pending")
