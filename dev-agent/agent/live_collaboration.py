@@ -22,6 +22,7 @@ from .collaboration_cost_preview import preview_task
 from .collaboration_preflight import preflight
 from .review_validation import validate_review
 from .proposal_checkpoint import save_proposal
+from .review_failure_record import save_review_failure
 
 LIMITS=BudgetLimits(Decimal("5.00"),20,Decimal("0.50"))
 RESERVATION=Decimal("0.50")  # legacy maximum per request, not default hold
@@ -75,12 +76,22 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
         nonlocal reserved_total
         reserved_total+=holds[provider]
         request_ids.append(request_id)
-        raw=transport(provider,payload,key)
+        try:
+            raw=transport(provider,payload,key)
+        except Exception:
+            if provider=='anthropic' and checkpoint_dir is not None:
+                save_review_failure(checkpoint_dir,json.loads(prompt)['proposal_sha256'],'review_provider_error')
+            raise
         if provider=="openai":
             metadata=openai_metadata(raw)
             if not metadata["output_text_present"]:
                 raise ValueError("OpenAI returned no usable proposal; Claude review not started")
-        response=parser(raw)
+        try:
+            response=parser(raw)
+        except ValueError:
+            if provider=='anthropic' and checkpoint_dir is not None:
+                save_review_failure(checkpoint_dir,json.loads(prompt)['proposal_sha256'],'review_incomplete')
+            raise
         usage.append({"provider":provider,"model":model,
                       "input_tokens":response.input_tokens,
                       "output_tokens":response.output_tokens,
@@ -90,6 +101,7 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
             try:
                 validate_review(response.text,expected)
             except ValueError as exc:
+                save_review_failure(checkpoint_dir,expected,"review_invalid_json")
                 raise ValueError("Claude review invalid; no retry: "+str(exc)) from None
         return response.text
     try:
