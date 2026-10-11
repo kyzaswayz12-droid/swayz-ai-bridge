@@ -21,6 +21,7 @@ from .response_diagnostics import openai_metadata
 from .collaboration_cost_preview import preview_task
 from .collaboration_preflight import preflight
 from .review_validation import validate_review
+from .proposal_checkpoint import save_proposal
 
 LIMITS=BudgetLimits(Decimal("5.00"),20,Decimal("0.50"))
 RESERVATION=Decimal("0.50")  # legacy maximum per request, not default hold
@@ -29,7 +30,8 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
              openai_model: str, claude_model: str, execute: bool=False,
              transport=provider_transport,
              openai_rate_card: Path | None = None,
-             claude_rate_card: Path | None = None):
+             claude_rate_card: Path | None = None,
+             checkpoint_dir: Path | None = None):
     if not execute:
         return {"state":"disabled","provider_calls":0}
     if openai_rate_card is None or claude_rate_card is None:
@@ -92,9 +94,13 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
         return response.text
     try:
         def coder(instruction):
-            return call("openai",openai_model,
+            proposal=call("openai",openai_model,
                 "Produce a concise, non-executable development proposal in plain text.",
                 instruction,1024)
+            if checkpoint_dir is None:
+                raise PermissionError("Private checkpoint directory required before Claude review")
+            save_proposal(checkpoint_dir,proposal)
+            return proposal
         def reviewer(instruction,proposal,digest):
             return call("anthropic",claude_model,
                 "Return ONLY one raw JSON object, without markdown fences or prose. "
