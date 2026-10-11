@@ -8,6 +8,7 @@ import json
 from pathlib import Path
 from .live_collaboration import run_once
 from .collaboration_cost_preview import preview_task
+from .rate_card_loader import load_rate_card
 
 DEFAULT_TASK=("Review the Swayz trading project's risk-control architecture "
               "at a conceptual level. Propose automated tests only. "
