@@ -41,6 +41,7 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
     ledger=BudgetStore(str(budget_db))
     request_ids=[]
     usage=[]
+    # Pricing is intentionally not inferred from token counts here.
     def call(provider,model,instruction,prompt,max_tokens):
         if provider=="openai":
             payload=prepare_openai_request(model,instruction,prompt,max_output_tokens=max_tokens)
@@ -61,8 +62,10 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
             if not metadata["output_text_present"]:
                 raise ValueError("OpenAI returned no usable proposal; Claude review not started")
         response=parser(raw)
-        usage.append({"provider":provider,"input_tokens":response.input_tokens,
-                      "output_tokens":response.output_tokens})
+        usage.append({"provider":provider,"model":model,
+                      "input_tokens":response.input_tokens,
+                      "output_tokens":response.output_tokens,
+                      "billing_verified":False})
         return response.text
     try:
         def coder(instruction):
