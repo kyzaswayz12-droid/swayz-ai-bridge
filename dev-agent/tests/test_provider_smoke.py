@@ -40,6 +40,10 @@ class ProviderSmokeTests(unittest.TestCase):
             secret.write_text("OPENAI_API_KEY=example-a\nANTHROPIC_API_KEY=example-b\n")
             secret.chmod(0o600)
             budget=Path(d)/"budget.db"
+            control=Path(d)/"control.db"
+            stop=EmergencyStop(str(control))
+            self.assertTrue(stop.is_stopped())
+            stop.close()
             def fail(*args):
                 raise TimeoutError("provider unavailable")
             with self.assertRaises(TimeoutError):
