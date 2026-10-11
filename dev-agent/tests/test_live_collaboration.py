@@ -42,6 +42,7 @@ class LiveCollaborationTests(unittest.TestCase):
                     return json.dumps({"output":[{"content":[{"type":"output_text",
                         "text":"Add tests for risk limits"}]}],
                         "usage":{"input_tokens":15,"output_tokens":20}}).encode()
+                self.assertEqual(payload["output_config"]["format"]["type"],"json_schema")
                 task=json.loads(payload["messages"][0]["content"])
                 return json.dumps({"content":[{"type":"text","text":json.dumps({
                     "proposal_sha256":task["proposal_sha256"],"approved":True,
