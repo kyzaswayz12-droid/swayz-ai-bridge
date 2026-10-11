@@ -46,7 +46,9 @@ def main(argv=None):
                   openai_model=args.openai_model,claude_model=args.claude_model)
     result=run_once(DEFAULT_TASK,secrets=args.secrets,budget_db=args.budget_db,
                     control_db=args.control_db,openai_model=args.openai_model,
-                    claude_model=args.claude_model,execute=args.execute)
+                    claude_model=args.claude_model,execute=args.execute,
+                    openai_rate_card=args.openai_rate_card,
+                    claude_rate_card=args.claude_rate_card)
     print(json.dumps(result,sort_keys=True))
 
 if __name__=="__main__":
