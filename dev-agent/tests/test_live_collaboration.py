@@ -48,3 +48,27 @@ class LiveCollaborationTests(unittest.TestCase):
                     budget_db=Path(d)/"budget.db",control_db=Path(d)/"missing.db",
                     openai_model="test",claude_model="test",execute=True,
                     transport=lambda *args:self.fail("Unexpected provider call"))
+
+    def test_no_openai_text_prevents_claude_call(self):
+        with tempfile.TemporaryDirectory() as d:
+            secrets=Path(d)/"providers.env"
+            secrets.write_text("OPENAI_API_KEY=fake-openai\nANTHROPIC_API_KEY=fake-claude\n")
+            secrets.chmod(0o600)
+            stop=Path(d)/"stop.db"
+            EmergencyStop(str(stop)).close()
+            calls=[]
+            def transport(provider,payload,key):
+                calls.append(provider)
+                return json.dumps({"status":"incomplete",
+                    "incomplete_details":{"reason":"max_output_tokens"},
+                    "output":[{"type":"reasoning","summary":[]}],
+                    "usage":{"input_tokens":15,"output_tokens":1024}}).encode()
+            with self.assertRaisesRegex(ValueError,"no usable proposal"):
+                run_once("Check tests",secrets=secrets,
+                    budget_db=Path(d)/"budget.db",control_db=stop,
+                    openai_model="test",claude_model="test",execute=True,
+                    transport=transport)
+            self.assertEqual(calls,["openai"])
+            import sqlite3
+            with sqlite3.connect(Path(d)/"budget.db") as db:
+                self.assertEqual(db.execute("SELECT COUNT(*) FROM reservations").fetchone()[0],1)
