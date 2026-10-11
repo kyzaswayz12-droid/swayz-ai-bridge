@@ -75,3 +75,24 @@ class ProviderSmokeTests(unittest.TestCase):
                       model="test-model",execute=True,
                       transport=lambda *args:None)
             self.assertFalse((Path(d)/"budget.db").exists())
+
+    def test_reasoning_only_response_reports_metadata(self):
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            secret=Path(d)/"providers.env"
+            secret.write_text("OPENAI_API_KEY=example-a\\nANTHROPIC_API_KEY=example-b\\n")
+            secret.chmod(0o600)
+            control=Path(d)/"control.db"
+            stop=EmergencyStop(str(control))
+            stop.close()
+            def mock(provider,payload,key):
+                return json.dumps({"status":"incomplete",
+                    "incomplete_details":{"reason":"max_output_tokens"},
+                    "output":[{"type":"reasoning","summary":[]}],
+                    "usage":{"input_tokens":8,"output_tokens":32,
+                             "output_tokens_details":{"reasoning_tokens":32}}}).encode()
+            result=smoke("openai",secrets=secret,budget_db=Path(d)/"budget.db",
+                         control_db=control,model="test-model",execute=True,transport=mock)
+            self.assertEqual(result["state"],"no_output_text")
+            self.assertEqual(result["incomplete_reason"],"max_output_tokens")
+            self.assertEqual(result["reasoning_tokens"],32)
