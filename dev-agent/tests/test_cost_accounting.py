@@ -38,3 +38,14 @@ class CostAccountingTests(unittest.TestCase):
         ledger.reserve("uncertain",D("0.10"),BudgetLimits(),now)
         self.assertEqual(ledger.summary("2026-10-11")["pending_reserved_usd"],"0.10")
         ledger.close()
+
+    def test_settled_amount_releases_unused_reservation(self):
+        ledger=BudgetStore()
+        now=datetime(2026,10,11,tzinfo=timezone.utc)
+        limits=BudgetLimits(D("0.25"),5,D("0.20"))
+        ledger.reserve("first",D("0.20"),limits,now)
+        with self.assertRaises(ValueError):
+            ledger.reserve("second",D("0.20"),limits,now)
+        ledger.settle("first",D("0.01"))
+        self.assertTrue(ledger.reserve("second",D("0.20"),limits,now))
+        ledger.close()
