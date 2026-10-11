@@ -19,15 +19,22 @@ from .providers import (prepare_openai_request, prepare_anthropic_request,
 from .secret_file import load_provider_keys
 from .response_diagnostics import openai_metadata
 from .collaboration_cost_preview import preview_task
+from .collaboration_preflight import preflight
 
 LIMITS=BudgetLimits(Decimal("5.00"),20,Decimal("0.50"))
 RESERVATION=Decimal("0.50")  # legacy maximum per request, not default hold
 
 def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
              openai_model: str, claude_model: str, execute: bool=False,
-             transport=provider_transport):
+             transport=provider_transport,
+             openai_rate_card: Path | None = None,
+             claude_rate_card: Path | None = None):
     if not execute:
         return {"state":"disabled","provider_calls":0}
+    if openai_rate_card is None or claude_rate_card is None:
+        raise PermissionError("Approved rate cards required for live execution")
+    preflight(task,openai_card=openai_rate_card,claude_card=claude_rate_card,
+              openai_model=openai_model,claude_model=claude_model)
     if not isinstance(task,str) or not 1<=len(task.strip())<=1500:
         raise ValueError("Invalid task")
     if not control_db.is_file():
