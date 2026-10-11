@@ -11,6 +11,7 @@ from .secret_file import load_provider_keys
 from .providers import (prepare_openai_request, prepare_anthropic_request,
                         openai_response, anthropic_response)
 from .http_transport import provider_transport
+from .response_diagnostics import openai_metadata
 
 def smoke(provider: str, *, secrets: Path, budget_db: Path,
           control_db: Path | None = None, model: str, execute=False,
@@ -44,6 +45,14 @@ def smoke(provider: str, *, secrets: Path, budget_db: Path,
         ledger.reserve(request_id,Decimal("0.10"),BudgetLimits(Decimal("5.00"),20,Decimal("0.50")),
                        datetime.now(timezone.utc))
         raw=transport(provider,payload,key)
+        if provider=="openai":
+            meta=openai_metadata(raw)
+            if not meta["output_text_present"]:
+                return {"provider":provider,"state":"no_output_text",
+                        "status":meta["status"],"incomplete_reason":meta["incomplete_reason"],
+                        "input_tokens":meta["input_tokens"],"output_tokens":meta["output_tokens"],
+                        "reasoning_tokens":meta["reasoning_tokens"],
+                        "reserved_usd":"0.10","request_id":request_id}
         response=openai_response(raw) if provider=="openai" else anthropic_response(raw)
         return {"provider":provider,"state":"responded",
                 "input_tokens":response.input_tokens,"output_tokens":response.output_tokens,
