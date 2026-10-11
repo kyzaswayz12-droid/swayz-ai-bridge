@@ -71,6 +71,7 @@ class LiveCollaborationTests(unittest.TestCase):
             secrets.chmod(0o600)
             stop=Path(d)/"stop.db"
             EmergencyStop(str(stop)).close()
+            a,b=cards(d)
             calls=[]
             def transport(provider,payload,key):
                 calls.append(provider)
