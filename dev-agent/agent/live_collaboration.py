@@ -64,7 +64,7 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
             parser=openai_response
             key=keys["OPENAI_API_KEY"]
         else:
-            payload=prepare_anthropic_request(model,instruction,prompt,max_tokens=max_tokens)
+            payload=prepare_anthropic_request(model,instruction,prompt,max_tokens=max_tokens,structured_review=True)
             parser=anthropic_response
             key=keys["ANTHROPIC_API_KEY"]
         if provider=="anthropic" and len(prompt.encode("utf-8"))>12000:
