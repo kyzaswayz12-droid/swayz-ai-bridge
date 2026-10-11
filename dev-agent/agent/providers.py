@@ -68,6 +68,13 @@ def prepare_openai_request(model: str, instruction: str, task: str, *, max_outpu
     return {"model":model,"instructions":instruction,"input":task,
             "max_output_tokens":max_output_tokens,"store":False}
 
+def review_json_schema():
+    return {"type":"object","additionalProperties":False,
+            "required":["proposal_sha256","approved","findings"],
+            "properties":{"proposal_sha256":{"type":"string","pattern":"^[a-f0-9]{64}$"},
+                          "approved":{"type":"boolean"},
+                          "findings":{"type":"array","items":{"type":"string","minLength":1}}}}
+
 def prepare_anthropic_request(model: str, instruction: str, task: str, *, max_tokens=1500, structured_review=False):
     _require_text(model,"model")
     _require_text(instruction,"instruction")
