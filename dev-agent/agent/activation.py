@@ -21,7 +21,10 @@ def run_provider_call(*, activation: Activation, provider: str, request_id: str,
                       model: str, instruction: str, task: str, api_key: str,
                       budget: BudgetStore, limits: BudgetLimits,
                       estimate_usd: Decimal, now: datetime,
-                      transport=provider_transport):
+                      transport=provider_transport, emergency_stop=None):
+    if emergency_stop is None:
+        raise PermissionError("Persistent emergency-stop control required")
+    emergency_stop.require_running()
     if not activation.owner_approved or not activation.provider_calls_enabled:
         raise PermissionError("Owner approval and model-call activation required")
     if activation.git_writes_enabled or activation.live_trading_enabled:
