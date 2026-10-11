@@ -10,7 +10,7 @@ class LiveCollaborationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             result=run_once("Check tests",secrets=Path(d)/"missing",
                 budget_db=Path(d)/"budget.db",control_db=Path(d)/"stop.db",
-                openai_model="test",claude_model="test",execute=False)
+                openai_model="gpt-5-mini",claude_model="claude-haiku-4-5-20251001",execute=False)
             self.assertEqual(result["state"],"disabled")
             self.assertFalse((Path(d)/"budget.db").exists())
 
@@ -35,7 +35,7 @@ class LiveCollaborationTests(unittest.TestCase):
                     "usage":{"input_tokens":60,"output_tokens":40}}).encode()
             result=run_once("Improve validation",secrets=secrets,
                 budget_db=Path(d)/"budget.db",control_db=stop,
-                openai_model="test",claude_model="test",execute=True,
+                openai_model="gpt-5-mini",claude_model="claude-haiku-4-5-20251001",execute=True,
                 transport=transport)
             self.assertEqual(calls,["openai","anthropic"])
             self.assertEqual(result["state"],"approval_required")
@@ -47,7 +47,7 @@ class LiveCollaborationTests(unittest.TestCase):
             with self.assertRaises(PermissionError):
                 run_once("Test",secrets=Path(d)/"missing",
                     budget_db=Path(d)/"budget.db",control_db=Path(d)/"missing.db",
-                    openai_model="test",claude_model="test",execute=True,
+                    openai_model="gpt-5-mini",claude_model="claude-haiku-4-5-20251001",execute=True,
                     transport=lambda *args:self.fail("Unexpected provider call"))
 
     def test_no_openai_text_prevents_claude_call(self):
@@ -67,7 +67,7 @@ class LiveCollaborationTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError,"no usable proposal"):
                 run_once("Check tests",secrets=secrets,
                     budget_db=Path(d)/"budget.db",control_db=stop,
-                    openai_model="test",claude_model="test",execute=True,
+                    openai_model="gpt-5-mini",claude_model="claude-haiku-4-5-20251001",execute=True,
                     transport=transport)
             self.assertEqual(calls,["openai"])
             import sqlite3
