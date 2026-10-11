@@ -31,7 +31,7 @@ class ProviderSmokeTests(unittest.TestCase):
             result=smoke("openai",secrets=secret,budget_db=budget,
                          model="test-model",control_db=control,execute=True,transport=mock)
             self.assertEqual(result["state"],"responded")
-            self.assertEqual(result["reservation_usd"],"0.10")
+            self.assertEqual(result["reserved_usd"],"0.10")
             self.assertTrue(budget.is_file())
 
     def test_failed_request_retains_reservation(self):
