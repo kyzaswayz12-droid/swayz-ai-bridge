@@ -24,6 +24,7 @@ def main(argv=None):
     p.add_argument("--secrets",type=Path,required=True)
     p.add_argument("--budget-db",type=Path,required=True)
     p.add_argument("--control-db",type=Path,required=True)
+    p.add_argument("--checkpoint-dir",type=Path)
     p.add_argument("--openai-model",default="gpt-5-mini")
     p.add_argument("--claude-model",default="claude-haiku-4-5-20251001")
     args=p.parse_args(argv)
@@ -48,7 +49,8 @@ def main(argv=None):
                     control_db=args.control_db,openai_model=args.openai_model,
                     claude_model=args.claude_model,execute=args.execute,
                     openai_rate_card=args.openai_rate_card,
-                    claude_rate_card=args.claude_rate_card)
+                    claude_rate_card=args.claude_rate_card,
+                    checkpoint_dir=args.checkpoint_dir)
     print(json.dumps(result,sort_keys=True))
 
 if __name__=="__main__":
