@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 from .live_collaboration import run_once
 from .collaboration_cost_preview import preview_task
-from .rate_card_loader import load_rate_card
+from .collaboration_preflight import preflight
 
 DEFAULT_TASK=("Review the Swayz trading project's risk-control architecture "
               "at a conceptual level. Propose automated tests only. "
@@ -41,8 +41,9 @@ def main(argv=None):
     if args.execute:
         if not args.openai_rate_card or not args.claude_rate_card:
             p.error("Live execution requires two owner-verified rate cards")
-        load_rate_card(args.openai_rate_card,"openai",args.openai_model)
-        load_rate_card(args.claude_rate_card,"anthropic",args.claude_model)
+        preflight(DEFAULT_TASK,openai_card=args.openai_rate_card,
+                  claude_card=args.claude_rate_card,
+                  openai_model=args.openai_model,claude_model=args.claude_model)
     result=run_once(DEFAULT_TASK,secrets=args.secrets,budget_db=args.budget_db,
                     control_db=args.control_db,openai_model=args.openai_model,
                     claude_model=args.claude_model,execute=args.execute)
