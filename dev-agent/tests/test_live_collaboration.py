@@ -50,7 +50,8 @@ class LiveCollaborationTests(unittest.TestCase):
             result=run_once("Improve validation",secrets=secrets,
                 budget_db=Path(d)/"budget.db",control_db=stop,
                 openai_model="gpt-5-mini",claude_model="claude-haiku-4-5-20251001",execute=True,
-                transport=transport,openai_rate_card=a,claude_rate_card=b)
+                transport=transport,openai_rate_card=a,claude_rate_card=b,
+                checkpoint_dir=Path(d)/"checkpoints")
             self.assertEqual(calls,["openai","anthropic"])
             self.assertEqual(len(list((Path(d)/"checkpoints").glob("*.json"))),1)
             self.assertEqual(result["state"],"approval_required")
