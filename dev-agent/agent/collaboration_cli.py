@@ -18,6 +18,8 @@ def main(argv=None):
     p=argparse.ArgumentParser()
     p.add_argument("--execute",action="store_true")
     p.add_argument("--preview-cost",action="store_true")
+    p.add_argument("--openai-rate-card",type=Path)
+    p.add_argument("--claude-rate-card",type=Path)
     p.add_argument("--secrets",type=Path,required=True)
     p.add_argument("--budget-db",type=Path,required=True)
     p.add_argument("--control-db",type=Path,required=True)
@@ -35,6 +37,11 @@ def main(argv=None):
             "total_reserved_usd":str(estimate.total_reservation_usd),
             "provider_hard_cap":False},sort_keys=True))
         return
+    if args.execute:
+        if not args.openai_rate_card or not args.claude_rate_card:
+            p.error("Live execution requires two owner-verified rate cards")
+        load_rate_card(args.openai_rate_card,"openai",args.openai_model)
+        load_rate_card(args.claude_rate_card,"anthropic",args.claude_model)
     result=run_once(DEFAULT_TASK,secrets=args.secrets,budget_db=args.budget_db,
                     control_db=args.control_db,openai_model=args.openai_model,
                     claude_model=args.claude_model,execute=args.execute)
