@@ -68,11 +68,14 @@ def prepare_openai_request(model: str, instruction: str, task: str, *, max_outpu
     return {"model":model,"instructions":instruction,"input":task,
             "max_output_tokens":max_output_tokens,"store":False}
 
-def prepare_anthropic_request(model: str, instruction: str, task: str, *, max_tokens=1500):
+def prepare_anthropic_request(model: str, instruction: str, task: str, *, max_tokens=1500, structured_review=False):
     _require_text(model,"model")
     _require_text(instruction,"instruction")
     _require_text(task,"task")
     if type(max_tokens) is not int or not 1<=max_tokens<=4096:
         raise ValueError("Invalid output cap")
-    return {"model":model,"system":instruction,
+    payload={"model":model,"system":instruction,
             "messages":[{"role":"user","content":task}],"max_tokens":max_tokens}
+    if structured_review:
+        payload["output_config"]={"format":{"type":"json_schema","schema":review_json_schema()}}
+    return payload
