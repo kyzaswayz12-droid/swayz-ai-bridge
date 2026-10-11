@@ -17,6 +17,7 @@ from .http_transport import provider_transport
 from .providers import (prepare_openai_request, prepare_anthropic_request,
                         openai_response, anthropic_response)
 from .secret_file import load_provider_keys
+from .response_diagnostics import openai_metadata
 
 LIMITS=BudgetLimits(Decimal("5.00"),20,Decimal("0.50"))
 RESERVATION=Decimal("0.50")
@@ -39,6 +40,7 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
     keys=load_provider_keys(secrets)
     ledger=BudgetStore(str(budget_db))
     request_ids=[]
+    usage=[]
     def call(provider,model,instruction,prompt,max_tokens):
         if provider=="openai":
             payload=prepare_openai_request(model,instruction,prompt,max_output_tokens=max_tokens)
@@ -53,12 +55,20 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
         if reserved is not True:
             raise PermissionError("Budget reservation refused")
         request_ids.append(request_id)
-        return parser(transport(provider,payload,key)).text
+        raw=transport(provider,payload,key)
+        if provider=="openai":
+            metadata=openai_metadata(raw)
+            if not metadata["output_text_present"]:
+                raise ValueError("OpenAI returned no usable proposal; Claude review not started")
+        response=parser(raw)
+        usage.append({"provider":provider,"input_tokens":response.input_tokens,
+                      "output_tokens":response.output_tokens})
+        return response.text
     try:
         def coder(instruction):
             return call("openai",openai_model,
                 "Produce a concise, non-executable development proposal in plain text.",
-                instruction,512)
+                instruction,1024)
         def reviewer(instruction,proposal,digest):
             return call("anthropic",claude_model,
                 "Review the proposal. Return ONLY a JSON object with exactly keys "
@@ -70,6 +80,7 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
         return {"state":result.state,"proposal_sha256":result.proposal_sha256,
                 "reviewer_approved":result.approved_by_reviewer,
                 "findings":list(result.findings),"request_ids":request_ids,
+                "token_usage":usage,
                 "reserved_usd":str(RESERVATION*len(request_ids)),
                 "github_writes":0,"live_trading":False}
     finally:
