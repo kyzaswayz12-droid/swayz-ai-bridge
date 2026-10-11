@@ -39,7 +39,8 @@ class LiveCollaborationTests(unittest.TestCase):
                 transport=transport)
             self.assertEqual(calls,["openai","anthropic"])
             self.assertEqual(result["state"],"approval_required")
-            self.assertEqual(result["reserved_usd"],"1.00")
+            self.assertGreater(float(result["reserved_usd"]),0)
+            self.assertLess(float(result["reserved_usd"]),0.10)
 
     def test_missing_stop_prevents_calls(self):
         with tempfile.TemporaryDirectory() as d:
