@@ -80,7 +80,7 @@ class ProviderSmokeTests(unittest.TestCase):
         import json
         with tempfile.TemporaryDirectory() as d:
             secret=Path(d)/"providers.env"
-            secret.write_text("OPENAI_API_KEY=example-a\\nANTHROPIC_API_KEY=example-b\\n")
+            secret.write_text("OPENAI_API_KEY=example-a\nANTHROPIC_API_KEY=example-b\n")
             secret.chmod(0o600)
             control=Path(d)/"control.db"
             stop=EmergencyStop(str(control))
