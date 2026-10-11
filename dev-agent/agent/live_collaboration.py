@@ -20,6 +20,7 @@ from .secret_file import load_provider_keys
 from .response_diagnostics import openai_metadata
 from .collaboration_cost_preview import preview_task
 from .collaboration_preflight import preflight
+from .review_validation import validate_review
 
 LIMITS=BudgetLimits(Decimal("5.00"),20,Decimal("0.50"))
 RESERVATION=Decimal("0.50")  # legacy maximum per request, not default hold
@@ -82,6 +83,12 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
                       "input_tokens":response.input_tokens,
                       "output_tokens":response.output_tokens,
                       "billing_verified":False})
+        if provider=="anthropic":
+            expected=json.loads(prompt)["proposal_sha256"]
+            try:
+                validate_review(response.text,expected)
+            except ValueError as exc:
+                raise ValueError("Claude review invalid; no retry: "+str(exc)) from None
         return response.text
     try:
         def coder(instruction):
@@ -90,9 +97,10 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
                 instruction,1024)
         def reviewer(instruction,proposal,digest):
             return call("anthropic",claude_model,
-                "Review the proposal. Return ONLY a JSON object with exactly keys "
-                "proposal_sha256 (the provided hash), approved (boolean), findings "
-                "(array of nonempty strings). Reject unsafe or unsupported claims.",
+                "Return ONLY one raw JSON object, without markdown fences or prose. "
+                "Exactly three keys: proposal_sha256 (copy the supplied hash), "
+                "approved (JSON boolean), findings (array of nonempty strings). "
+                "If uncertain, approved must be false and findings explain why.",
                 json.dumps({"task":instruction,"proposal":proposal,"proposal_sha256":digest}),
                 512)
         result=collaborate(task,coder,reviewer)
