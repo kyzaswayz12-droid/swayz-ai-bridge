@@ -72,5 +72,35 @@ class BudgetStore:
             self.db.execute("ROLLBACK")
             raise
 
+
+    def summary(self, day_utc: str) -> dict:
+        """Read-only view: settled charges and unresolved holds stay distinct."""
+        from datetime import date
+        if not isinstance(day_utc,str):
+            raise ValueError("Invalid UTC date")
+        try:
+            if date.fromisoformat(day_utc).isoformat()!=day_utc:
+                raise ValueError("Invalid UTC date")
+        except (TypeError,ValueError):
+            raise ValueError("Invalid UTC date") from None
+        rows=self.db.execute(
+            "SELECT reserved_usd,status,actual_usd FROM reservations WHERE day_utc=?",
+            (day_utc,)).fetchall()
+        settled=Decimal("0")
+        pending=Decimal("0")
+        for reserved,status,actual in rows:
+            if status=="settled":
+                if actual is None:
+                    raise ValueError("Corrupt settled ledger entry")
+                settled+=Decimal(actual)
+            elif status=="reserved":
+                pending+=Decimal(reserved)
+            else:
+                raise ValueError("Corrupt ledger status")
+        return {"day_utc":day_utc,"requests":len(rows),
+                "settled_usd":str(settled),"pending_reserved_usd":str(pending),
+                "accounted_usd":str(settled+pending),
+                "actual_provider_billing_verified":False}
+
     def close(self):
         self.db.close()
