@@ -18,9 +18,10 @@ from .providers import (prepare_openai_request, prepare_anthropic_request,
                         openai_response, anthropic_response)
 from .secret_file import load_provider_keys
 from .response_diagnostics import openai_metadata
+from .collaboration_cost_preview import preview_task
 
 LIMITS=BudgetLimits(Decimal("5.00"),20,Decimal("0.50"))
-RESERVATION=Decimal("0.50")
+RESERVATION=Decimal("0.50")  # legacy maximum per request, not default hold
 
 def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
              openai_model: str, claude_model: str, execute: bool=False,
@@ -37,6 +38,9 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
             raise PermissionError("Agent must remain stopped for one-shot test")
     finally:
         control.close()
+    preview=preview_task(task,openai_model=openai_model,claude_model=claude_model)
+    holds={"openai":preview.openai_reservation_usd,
+           "anthropic":preview.claude_reservation_usd}
     keys=load_provider_keys(secrets)
     ledger=BudgetStore(str(budget_db))
     request_ids=[]
@@ -51,8 +55,10 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
             payload=prepare_anthropic_request(model,instruction,prompt,max_tokens=max_tokens)
             parser=anthropic_response
             key=keys["ANTHROPIC_API_KEY"]
+        if provider=="anthropic" and len(prompt.encode("utf-8"))>12000:
+            raise ValueError("Review payload too large; no Claude request made")
         request_id="collab-"+uuid.uuid4().hex
-        reserved=ledger.reserve(request_id,RESERVATION,LIMITS,datetime.now(timezone.utc))
+        reserved=ledger.reserve(request_id,holds[provider],LIMITS,datetime.now(timezone.utc))
         if reserved is not True:
             raise PermissionError("Budget reservation refused")
         request_ids.append(request_id)
@@ -84,7 +90,7 @@ def run_once(task: str, *, secrets: Path, budget_db: Path, control_db: Path,
                 "reviewer_approved":result.approved_by_reviewer,
                 "findings":list(result.findings),"request_ids":request_ids,
                 "token_usage":usage,
-                "reserved_usd":str(RESERVATION*len(request_ids)),
+                "reserved_usd":str(sum((holds[p] for p in ["openai","anthropic"][:len(request_ids)]),Decimal("0"))),
                 "github_writes":0,"live_trading":False}
     finally:
         ledger.close()
