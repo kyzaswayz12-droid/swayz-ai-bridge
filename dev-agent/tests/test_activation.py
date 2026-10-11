@@ -4,14 +4,17 @@ from datetime import datetime,timezone
 from decimal import Decimal as D
 from agent.activation import Activation,run_provider_call
 from agent.budget import BudgetStore,BudgetLimits
+from agent.emergency_stop import EmergencyStop
 
 class ActivationTests(unittest.TestCase):
     def setUp(self):
         self.budget=BudgetStore()
         self.called=0
+        self.stop=EmergencyStop(":memory:")
 
     def tearDown(self):
         self.budget.close()
+        self.stop.close()
 
     def fake(self,provider,payload,key):
         self.called+=1
@@ -24,7 +27,8 @@ class ActivationTests(unittest.TestCase):
             model="test",instruction="Review",task="Test",api_key="dummy",
             budget=self.budget,limits=BudgetLimits(D("1"),3,D("0.5")),
             estimate_usd=D("0.1"),
-            now=datetime(2026,10,11,tzinfo=timezone.utc),transport=self.fake)
+            now=datetime(2026,10,11,tzinfo=timezone.utc),transport=self.fake,
+            emergency_stop=self.stop)
 
     def test_default_activation_fails_closed(self):
         with self.assertRaises(PermissionError):
@@ -37,10 +41,17 @@ class ActivationTests(unittest.TestCase):
             self.call(Activation(owner_approved=True))
 
     def test_approved_mock_call(self):
+        self.stop.enable(owner_authorised=True)
         result=self.call(Activation(owner_approved=True,provider_calls_enabled=True))
         self.assertEqual(result.text,"OK")
         self.assertEqual(self.called,1)
 
     def test_git_write_activation_rejected(self):
+        self.stop.enable(owner_authorised=True)
         with self.assertRaises(PermissionError):
             self.call(Activation(owner_approved=True,provider_calls_enabled=True,git_writes_enabled=True))
+
+    def test_emergency_stop_blocks_even_approved_call(self):
+        with self.assertRaisesRegex(PermissionError,"emergency stop"):
+            self.call(Activation(owner_approved=True,provider_calls_enabled=True))
+        self.assertEqual(self.called,0)
