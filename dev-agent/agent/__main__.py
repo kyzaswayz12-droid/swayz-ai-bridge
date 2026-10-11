@@ -11,6 +11,7 @@ def main(argv=None):
     command=parser.add_subparsers(dest="command",required=True)
     command.add_parser("status")
     command.add_parser("preflight")
+    command.add_parser("demo")
     args=parser.parse_args(argv)
     directory=Path(args.data_dir).expanduser().resolve()
     if not directory.is_dir() or directory.is_symlink():
@@ -27,6 +28,16 @@ def main(argv=None):
         },indent=2))
         return
     db=directory/"tasks.sqlite3"
+    if args.command=="demo":
+        from .workers import demo
+        store=TaskStore(str(db))
+        try:
+            store.enqueue("demo-review-001","Demonstrate offline coding and review")
+            result=demo(store)
+            print(json.dumps({"result":result,"tasks":store.status()},indent=2))
+        finally:
+            store.close()
+        return
     if not db.is_file():
         print(json.dumps({"state":"not_initialized","tasks":{}},indent=2))
         return
