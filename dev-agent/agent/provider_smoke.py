@@ -42,8 +42,10 @@ def smoke(provider: str, *, secrets: Path, budget_db: Path,
     ledger=BudgetStore(str(budget_db))
     request_id="smoke-"+uuid.uuid4().hex
     try:
-        ledger.reserve(request_id,Decimal("0.10"),BudgetLimits(Decimal("5.00"),20,Decimal("0.50")),
-                       datetime.now(timezone.utc))
+        reserved = ledger.reserve(request_id,Decimal("0.10"),BudgetLimits(Decimal("5.00"),20,Decimal("0.50")),
+                                  datetime.now(timezone.utc))
+        if reserved is not True:
+            raise PermissionError("Budget reservation refused; no provider call made")
         raw=transport(provider,payload,key)
         if provider=="openai":
             meta=openai_metadata(raw)
