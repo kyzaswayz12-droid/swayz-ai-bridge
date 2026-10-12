@@ -18,6 +18,9 @@ class GatewayTests(unittest.TestCase):
         self.job_db = str(root / "jobs.sqlite")
         self.budget_db = str(root / "budget.sqlite")
         self.control_db = str(root / "control.sqlite")
+        self.fx_path = root / "fx.json"
+        import json
+        self.fx_path.write_text(json.dumps({"base":"USD","quote":"GBP","gbp_per_usd":"1.00","verified_by_owner":True,"verified_on":"2026-10-12","expires_on":"2026-10-13","source_url":"https://example.org/fx"}),encoding="utf-8")
         jobs = DailyJobQuota(self.job_db)
         jobs.admit("job1", NOW)
         jobs.close()
@@ -25,7 +28,7 @@ class GatewayTests(unittest.TestCase):
                          control_db=self.control_db, job_id="job1",
                          request_id="req1", provider="openai",
                          model="test-model", instruction="Review", task="Mock task",
-                         maximum_usd=D("1"), approved_gbp_per_usd=D("1"), now=NOW)
+                         maximum_usd=D("1"), fx_approval_path=str(self.fx_path), now=NOW)
 
     def tearDown(self):
         self.tmp.cleanup()
