@@ -10,6 +10,8 @@ from pathlib import Path
 
 from .daily_job_quota import DailyJobQuota
 from .autonomy_gateway import reserve_offline_gateway_request
+from .fx_approval import load_approved_gbp_per_usd
+from .providers import prepare_openai_request, prepare_anthropic_request
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,15 @@ def stage_offline_collaboration(*, job_db: str, budget_db: str,
         raise ValueError("Empty task")
     if openai_request_id == anthropic_request_id:
         raise ValueError("Request IDs must differ")
+    # Validate both requests and total maximum cost before consuming a job slot.
+    prepare_openai_request(openai_model, "Offline development review", task)
+    prepare_anthropic_request(anthropic_model, "Offline development review", task)
+    rate = load_approved_gbp_per_usd(fx_approval_path, today=now.date())
+    for amount in (openai_maximum_usd, anthropic_maximum_usd):
+        if not isinstance(amount, Decimal) or not amount.is_finite() or amount <= 0:
+            raise ValueError("Invalid maximum request cost")
+    if (openai_maximum_usd + anthropic_maximum_usd) * rate > Decimal("5.00"):
+        raise ValueError("Combined request maximum exceeds daily GBP cap")
     # Reject a missing/stopped control before consuming a daily job slot.
     if not isinstance(control_db, str) or not Path(control_db).is_file():
         raise PermissionError("Emergency-stop control missing")
