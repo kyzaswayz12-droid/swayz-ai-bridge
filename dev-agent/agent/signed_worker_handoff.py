@@ -18,10 +18,11 @@ class PlannedHandoff:
 
 def authorise_and_plan(inbox, raw, signature, secret, *, job_id,
                        workspace, changes, image_digest):
+    # Validate the image before durable admission; an invalid image must not burn a job ID.
+    lifecycle = plan_worker_lifecycle(job_id, image_digest)
     decision = authorise_test_job(
         inbox, raw, signature, secret, job_id=job_id,
         workspace=workspace, changes=changes)
     if decision.state != "accepted_for_supervised_execution":
         return PlannedHandoff("duplicate_rejected", job_id, None)
-    lifecycle = plan_worker_lifecycle(job_id, image_digest)
     return PlannedHandoff("accepted_for_offline_planning", job_id, lifecycle)
