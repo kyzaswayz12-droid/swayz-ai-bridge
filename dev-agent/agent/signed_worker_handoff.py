@@ -19,7 +19,7 @@ class PlannedHandoff:
 def authorise_and_plan(inbox, raw, signature, secret, *, job_id,
                        workspace, changes, image_digest):
     # Validate the image before durable admission; an invalid image must not burn a job ID.
-    lifecycle = plan_worker_lifecycle(job_id, image_digest)
+    lifecycle = plan_worker_lifecycle(job_id, image_digest, workspace=str(workspace))
     decision = authorise_test_job(
         inbox, raw, signature, secret, job_id=job_id,
         workspace=workspace, changes=changes)
