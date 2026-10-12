@@ -23,13 +23,17 @@ def simulate_review_request(*, job_db: str, budget_db: str, job_id: str,
                             request_id: str, provider: str, model: str,
                             instruction: str, task: str, maximum_usd: Decimal,
                             approved_gbp_per_usd: Decimal, now: datetime,
-                            mock_response: bytes, control_db: str | None = None) -> AutonomousDispatchResult:
-    if control_db is not None:
-        control = EmergencyStop(control_db)
-        try:
-            control.require_running()
-        finally:
-            control.close()
+                            mock_response: bytes, control_db: str) -> AutonomousDispatchResult:
+    if not isinstance(control_db, str) or not control_db.strip():
+        raise PermissionError("Emergency-stop control required")
+    from pathlib import Path
+    if not Path(control_db).is_file():
+        raise PermissionError("Emergency-stop control missing")
+    control = EmergencyStop(control_db)
+    try:
+        control.require_running()
+    finally:
+        control.close()
     if provider == "openai":
         prepare_openai_request(model, instruction, task)
         parser = openai_response
