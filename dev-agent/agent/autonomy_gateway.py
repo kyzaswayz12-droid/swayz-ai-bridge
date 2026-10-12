@@ -10,6 +10,7 @@ from decimal import Decimal
 from pathlib import Path
 
 from .emergency_stop import EmergencyStop
+from .fx_approval import load_approved_gbp_per_usd
 from .job_request_reservation import reserve_job_api_request
 from .providers import prepare_openai_request, prepare_anthropic_request
 
@@ -27,7 +28,7 @@ def reserve_offline_gateway_request(*, job_db: str, budget_db: str,
                                     request_id: str, provider: str,
                                     model: str, instruction: str, task: str,
                                     maximum_usd: Decimal,
-                                    approved_gbp_per_usd: Decimal,
+                                    fx_approval_path: str,
                                     now: datetime) -> GatewayReservation:
     if not isinstance(control_db, str) or not control_db.strip():
         raise PermissionError("Emergency-stop control required")
@@ -44,6 +45,8 @@ def reserve_offline_gateway_request(*, job_db: str, budget_db: str,
         prepare_anthropic_request(model, instruction, task)
     else:
         raise ValueError("Unsupported provider")
+    approved_gbp_per_usd = load_approved_gbp_per_usd(
+        fx_approval_path, today=now.date())
     accepted = reserve_job_api_request(
         job_db=job_db, budget_db=budget_db, job_id=job_id,
         request_id=request_id, provider=provider, maximum_usd=maximum_usd,
