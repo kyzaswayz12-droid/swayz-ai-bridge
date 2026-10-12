@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from .job_request_reservation import reserve_job_api_request
+from .emergency_stop import EmergencyStop
 from .providers import (
     ModelResponse, prepare_openai_request, prepare_anthropic_request,
     openai_response, anthropic_response,
@@ -22,7 +23,13 @@ def simulate_review_request(*, job_db: str, budget_db: str, job_id: str,
                             request_id: str, provider: str, model: str,
                             instruction: str, task: str, maximum_usd: Decimal,
                             approved_gbp_per_usd: Decimal, now: datetime,
-                            mock_response: bytes) -> AutonomousDispatchResult:
+                            mock_response: bytes, control_db: str | None = None) -> AutonomousDispatchResult:
+    if control_db is not None:
+        control = EmergencyStop(control_db)
+        try:
+            control.require_running()
+        finally:
+            control.close()
     if provider == "openai":
         prepare_openai_request(model, instruction, task)
         parser = openai_response
