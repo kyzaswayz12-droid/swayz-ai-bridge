@@ -6,7 +6,7 @@ import time
 from contextlib import asynccontextmanager
 
 import httpx
-from app.control import handle_control_event
+from app.worker_control_dispatch import dispatch_bridge_control
 from app.core import Ignore
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from app.core import (
@@ -130,7 +130,7 @@ async def slack_events(request: Request, background_tasks: BackgroundTasks):
     store = get_store()
     now = time.time()
     if os.environ.get("SWAYZ_CONTROL_ROUTING_ENABLED") == "1":
-        control_action = handle_control_event(payload, settings, store, now)
+        control_action = dispatch_bridge_control(payload, settings, store, now)
         if isinstance(control_action, Reply):
             background_tasks.add_task(post_message, control_action.channel,
                                       control_action.thread_ts, control_action.text)
