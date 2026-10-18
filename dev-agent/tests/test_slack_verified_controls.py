@@ -1,5 +1,27 @@
 import unittest
-from app.core import Settings, Store, Reply, Ignore
+from dataclasses import dataclass
+from agent.slack_verified_controls import Reply, Ignore
+
+
+@dataclass(frozen=True)
+class Settings:
+    allowed_channel: str
+    allowed_users: frozenset
+    per_user_limit: int
+    total_limit: int
+
+
+class Store:
+    def __init__(self):
+        self.seen = set()
+    def claim_message(self, channel, ts, now):
+        key = (channel, ts)
+        if key in self.seen:
+            return False
+        self.seen.add(key)
+        return True
+    def close(self):
+        pass
 from agent.emergency_stop import EmergencyStop
 from agent.slack_verified_controls import handle_verified_control_event
 
