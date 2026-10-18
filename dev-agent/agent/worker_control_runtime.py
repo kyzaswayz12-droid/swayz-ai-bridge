@@ -30,7 +30,7 @@ def load_control_runtime_config(env, *, read_bytes=Path.read_bytes):
         ip = ipaddress.ip_address(host)
     except ValueError:
         raise PermissionError("Invalid bind address") from None
-    if ip.version != 4 or not ip.is_private or ip.is_loopback or ip.is_link_local:
+    if ip.version != 4 or str(ip) != "10.106.0.3":
         raise PermissionError("Private IPv4 bind required")
     if env.get("SWAYZ_CONTROL_PORT") != "8443":
         raise PermissionError("Unexpected control port")
