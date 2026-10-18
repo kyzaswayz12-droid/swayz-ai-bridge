@@ -34,7 +34,8 @@ class TrustedWorkerServiceTests(unittest.TestCase):
         args = dict(job_id="job1", snapshot=str(self.snapshot),
                     snapshot_root=str(self.snapshots),
                     expected_hashes=self.hashes, image_digest=IMAGE,
-                    journal_path=self.journal_path, runner=runner)
+                    journal_path=self.journal_path, runner=runner,
+                    approved_image_digests=frozenset({IMAGE}))
         args.update(overrides)
         return simulate_worker_service(**args)
 
