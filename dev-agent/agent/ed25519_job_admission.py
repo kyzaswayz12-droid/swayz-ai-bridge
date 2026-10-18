@@ -3,11 +3,9 @@
 The public key must be provisioned by a trusted administrator. This module
 does not run Docker, sign requests or grant job execution privileges.
 """
-import sqlite3
 import time
 from .ed25519_handoff import verify_job_ed25519
-from .test_jobs import TestJob
-from .test_jobs import _ID, _SHA
+from .test_jobs import TestJob, JOB_ID, SHA40, serialize_job
 
 
 def accept_ed25519_job(inbox, raw, signature, public_key, *,
@@ -19,8 +17,8 @@ def accept_ed25519_job(inbox, raw, signature, public_key, *,
         raise PermissionError("Unexpected repository")
     if payload["manifest_sha256"] != expected_manifest:
         raise PermissionError("Manifest mismatch")
-    if not _ID.fullmatch(job.job_id) or not _SHA.fullmatch(job.commit_sha):
-        raise PermissionError("Invalid job identity")
+    # Apply the same allowlists and identity checks as the established job format.
+    serialize_job(job)
     inbox.db.execute("BEGIN IMMEDIATE")
     try:
         result = inbox.db.execute(
