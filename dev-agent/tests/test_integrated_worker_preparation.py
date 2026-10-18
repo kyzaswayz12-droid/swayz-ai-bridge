@@ -39,7 +39,7 @@ class IntegratedWorkerPreparationTests(unittest.TestCase):
             self.inbox, self.raw, signature or self.signature, SECRET,
             job_id="job1", workspace=self.source, changes=self.changes,
             image_digest=DIGEST, snapshot_root=str(self.snapshots),
-            journal_path=self.journal_path)
+            journal_path=self.journal_path, observed_commit_sha="a" * 40)
 
     def test_complete_offline_preparation(self):
         result = self.call()
