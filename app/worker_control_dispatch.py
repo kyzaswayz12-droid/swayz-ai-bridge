@@ -15,7 +15,7 @@ def dispatch_bridge_control(payload, settings, store, now, *, remote_client=None
     try:
         from agent.slack_remote_control import route_verified_remote_control
     except ImportError:
-        return handle_control_event(payload, settings, store, now)
+        raise RuntimeError("Remote worker control integration unavailable")
     result = route_verified_remote_control(
         payload, settings, store, now, client=remote_client)
     from .core import Ignore, Reply
