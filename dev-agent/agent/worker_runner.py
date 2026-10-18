@@ -36,11 +36,11 @@ def run_worker_plan(plan: WorkerLifecycle, *, enabled=False,
                                False, False)
     except subprocess.TimeoutExpired:
         try:
-            runner(list(plan.kill_argv), capture_output=True, text=True,
-                   timeout=10, check=False)
+            killed = runner(list(plan.kill_argv), capture_output=True, text=True,
+                            timeout=10, check=False)
             inspection = runner(list(plan.inspect_argv), capture_output=True,
                                 text=True, timeout=10, check=False)
-            cleaned = inspection.returncode != 0
+            cleaned = killed.returncode == 0 and inspection.returncode != 0
         except (OSError, subprocess.TimeoutExpired):
             cleaned = False
         return WorkerRunResult("timed_out" if cleaned else "cleanup_unverified",
