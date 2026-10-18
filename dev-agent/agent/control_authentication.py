@@ -22,7 +22,7 @@ class ControlAuthenticator:
         if database_path == ":memory:" or not isinstance(database_path, str) or not database_path:
             raise ValueError("Persistent replay database required")
         self._key = key
-        self.db = sqlite3.connect(database_path, timeout=10, isolation_level=None)
+        self.db = sqlite3.connect(database_path, timeout=10, isolation_level=None, check_same_thread=False)
         self.db.execute("PRAGMA busy_timeout=10000")
         self.db.execute("CREATE TABLE IF NOT EXISTS control_nonces (nonce TEXT PRIMARY KEY, seen_at INTEGER NOT NULL)")
 
