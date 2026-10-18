@@ -10,7 +10,7 @@ class WorkerJournal:
     def __init__(self, path):
         if not isinstance(path, str) or not path or path == ":memory:":
             raise ValueError("Persistent journal path required")
-        self.db = sqlite3.connect(path, timeout=10, isolation_level=None)
+        self.db = sqlite3.connect(path, timeout=10, isolation_level=None, check_same_thread=False)
         self.db.execute("PRAGMA busy_timeout=10000")
         self.db.execute("""CREATE TABLE IF NOT EXISTS worker_jobs(
             job_id TEXT PRIMARY KEY,
