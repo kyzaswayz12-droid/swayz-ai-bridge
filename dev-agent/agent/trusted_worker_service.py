@@ -11,9 +11,11 @@ from .snapshot_reverification import verify_snapshot_before_execution
 
 
 def simulate_worker_service(*, job_id, snapshot, snapshot_root, expected_hashes,
-                            image_digest, journal_path, runner=None):
+                            image_digest, journal_path, runner=None, approved_image_digests=None):
     if runner is None or runner is subprocess.run:
         raise PermissionError("Real Docker runner forbidden")
+    if not isinstance(approved_image_digests, frozenset) or image_digest not in approved_image_digests:
+        raise PermissionError("Docker image digest not independently approved")
     journal = WorkerJournal(journal_path)
     try:
         if journal.status(job_id) is None or journal.status(job_id)[0] != "admitted":
