@@ -14,6 +14,15 @@ from .snapshot_reverification import verify_snapshot_before_execution
 from .worker_journal import WorkerJournal
 
 
+def _confirmed_absent(result, container_name):
+    if result.returncode != 1:
+        return False
+    # An error code alone is insufficient: require Docker's object-not-found
+    # message to refer to the exact container name.
+    detail = (result.stderr or "").lower()
+    return "no such object" in detail and container_name.lower() in detail
+
+
 @dataclass(frozen=True)
 class SupervisedResult:
     state: str
@@ -51,7 +60,7 @@ def execute_supervised_job(*, job_id, snapshot, snapshot_root, expected_hashes,
             # A separate cleanup check is still mandatory before accepting success.
             inspect = executor(list(plan.inspect_argv), capture_output=True, text=True,
                                timeout=10, check=False)
-            cleaned = inspect.returncode == 1
+            cleaned = _confirmed_absent(inspect, plan.name)
             if not cleaned:
                 journal.transition(job_id, "running", "blocked",
                                    excerpt="Container cleanup unverified")
@@ -67,7 +76,7 @@ def execute_supervised_job(*, job_id, snapshot, snapshot_root, expected_hashes,
                                 timeout=10, check=False)
                 inspect = executor(list(plan.inspect_argv), capture_output=True, text=True,
                                    timeout=10, check=False)
-                cleaned = kill.returncode == 0 and inspect.returncode == 1
+                cleaned = kill.returncode == 0 and _confirmed_absent(inspect, plan.name)
             except (OSError, subprocess.TimeoutExpired):
                 cleaned = False
             journal.transition(job_id, "running", "blocked",
