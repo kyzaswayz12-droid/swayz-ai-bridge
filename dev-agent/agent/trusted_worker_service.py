@@ -8,6 +8,7 @@ from .worker_journal import WorkerJournal
 from .worker_runner import run_worker_plan
 from .snapshot_execution_plan import plan_snapshot_execution
 from .snapshot_reverification import verify_snapshot_before_execution
+from .fixed_worker_policy import verify_fixed_worker_plan
 
 
 def simulate_worker_service(*, job_id, snapshot, snapshot_root, expected_hashes,
@@ -25,6 +26,9 @@ def simulate_worker_service(*, job_id, snapshot, snapshot_root, expected_hashes,
             plan = plan_snapshot_execution(
                 job_id=job_id, snapshot=snapshot, snapshot_root=snapshot_root,
                 image_digest=image_digest)
+            verify_fixed_worker_plan(
+                plan.lifecycle, job_id=job_id, image_digest=image_digest,
+                snapshot=snapshot, approved_image_digests=approved_image_digests)
         except Exception:
             journal.transition(job_id, "admitted", "blocked",
                                excerpt="Snapshot or image planning rejected")
