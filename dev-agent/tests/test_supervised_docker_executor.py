@@ -45,7 +45,7 @@ class SupervisedDockerExecutorTests(unittest.TestCase):
         def runner(argv, **kwargs):
             calls.append(argv)
             return SimpleNamespace(returncode=0 if len(calls) == 1 else 1,
-                                   stdout="OK", stderr="")
+                                   stdout="OK", stderr="" if len(calls) == 1 else "Error: No such object: swayz-test-job1")
         result = execute_supervised_job(**self.args, authorised=True, executor=runner)
         self.assertEqual(result.state, "passed")
         self.assertTrue(result.cleanup_verified)
@@ -55,7 +55,7 @@ class SupervisedDockerExecutorTests(unittest.TestCase):
         def runner(argv, **kwargs):
             calls.append(argv)
             return SimpleNamespace(returncode=2 if len(calls) == 1 else 1,
-                                   stdout="", stderr="failed")
+                                   stdout="", stderr="failed" if len(calls) == 1 else "Error: No such object: swayz-test-job1")
         result = execute_supervised_job(**self.args, authorised=True, executor=runner)
         self.assertEqual(result.state, "failed")
 
@@ -66,7 +66,7 @@ class SupervisedDockerExecutorTests(unittest.TestCase):
             if len(calls) == 1:
                 raise subprocess.TimeoutExpired(argv, 120)
             return SimpleNamespace(returncode=0 if len(calls) == 2 else 1,
-                                   stdout="", stderr="")
+                                   stdout="", stderr="" if len(calls) == 2 else "Error: No such object: swayz-test-job1")
         result = execute_supervised_job(**self.args, authorised=True, executor=runner)
         self.assertEqual(result.state, "blocked")
         self.assertTrue(result.cleanup_verified)
