@@ -25,16 +25,15 @@ class PreparedJob:
 
 def prepare_integrated_job(inbox, raw, signature, secret, *,
                            job_id, workspace, changes, image_digest,
-                           snapshot_root, journal_path, observed_commit_sha=None):
+                           snapshot_root, journal_path, observed_commit_sha):
     root = Path(snapshot_root)
     if not root.is_absolute() or root.is_symlink() or not root.is_dir() or root.resolve() != root:
         raise PermissionError("Invalid snapshot root")
-    if observed_commit_sha is not None:
-        handoff = prepare_test_handoff(job_id, workspace, changes)
-        verify_worker_identity(raw=raw, signature=signature, secret=secret,
-                               manifest_sha256=handoff.manifest_sha256,
-                               expected_job_id=job_id,
-                               observed_commit_sha=observed_commit_sha)
+    handoff = prepare_test_handoff(job_id, workspace, changes)
+    verify_worker_identity(raw=raw, signature=signature, secret=secret,
+                           manifest_sha256=handoff.manifest_sha256,
+                           expected_job_id=job_id,
+                           observed_commit_sha=observed_commit_sha)
     hashes = {name: entry["sha256"] for name, entry in
               verify_staged_changes(workspace, changes).items()}
     staged = stage_signed_worker_snapshot(
