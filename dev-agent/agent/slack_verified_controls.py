@@ -4,8 +4,19 @@ Call ONLY after Slack's HTTP signature has been verified. Uses the Bridge's
 channel/user allowlist and message deduplication. No Docker or paid APIs.
 """
 from dataclasses import dataclass
-from app.core import Ignore, Reply
 from .slack_control_intents import parse_slack_control
+
+
+@dataclass(frozen=True)
+class Ignore:
+    reason: str
+
+
+@dataclass(frozen=True)
+class Reply:
+    channel: str
+    thread_ts: str
+    text: str
 
 
 def handle_verified_control_event(payload, settings, store, now, *,
