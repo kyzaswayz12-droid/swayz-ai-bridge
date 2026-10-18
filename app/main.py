@@ -6,6 +6,8 @@ import time
 from contextlib import asynccontextmanager
 
 import httpx
+from app.worker_control_dispatch import dispatch_bridge_control
+from app.core import Ignore
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from app.core import (
     GENERIC_ERROR_TEXT, MAX_REPLY_CHARS, CallModel, Challenge, MissingConfig,
@@ -124,7 +126,18 @@ async def slack_events(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=400, detail="Invalid JSON")
     if isinstance(payload, dict) and payload.get("type") == "url_verification":
         return {"challenge": str(payload.get("challenge", ""))}
-    action = handle_event(payload, Settings.from_env(os.environ), get_store(), time.time())
+    settings = Settings.from_env(os.environ)
+    store = get_store()
+    now = time.time()
+    if os.environ.get("SWAYZ_CONTROL_ROUTING_ENABLED") == "1":
+        control_action = dispatch_bridge_control(payload, settings, store, now)
+        if isinstance(control_action, Reply):
+            background_tasks.add_task(post_message, control_action.channel,
+                                      control_action.thread_ts, control_action.text)
+            return {"ok": True}
+        if isinstance(control_action, Ignore) and control_action.reason != "not_control":
+            return {"ok": True}
+    action = handle_event(payload, settings, store, now)
     if isinstance(action, Challenge):
         return {"challenge": action.value}
     if isinstance(action, Reply):
