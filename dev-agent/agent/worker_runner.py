@@ -40,7 +40,9 @@ def run_worker_plan(plan: WorkerLifecycle, *, enabled=False,
                             timeout=10, check=False)
             inspection = runner(list(plan.inspect_argv), capture_output=True,
                                 text=True, timeout=10, check=False)
-            cleaned = killed.returncode == 0 and inspection.returncode != 0
+            # Docker inspect exit 1 is the expected "object not found" status.
+            # Other failures (including daemon errors) are not proof of cleanup.
+            cleaned = killed.returncode == 0 and inspection.returncode == 1
         except (OSError, subprocess.TimeoutExpired):
             cleaned = False
         return WorkerRunResult("timed_out" if cleaned else "cleanup_unverified",
