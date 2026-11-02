@@ -1,4 +1,5 @@
 """Single-turn Slack router; restrict to a test channel."""
+import asyncio
 import json
 import logging
 import os
@@ -121,7 +122,7 @@ async def process_worker_control(payload, settings, store, now, validated_action
         if key_file.is_symlink() or not key_file.is_file():
             raise ValueError("Invalid worker key file")
         client = RemoteControlClient(key=key_file.read_bytes(), ca_file=ca_path)
-        action = dispatch_bridge_control(payload, settings, store, now,
+        action = await asyncio.to_thread(dispatch_bridge_control, payload, settings, store, now,
                                          remote_client=client, validated_action=validated_action)
     except Exception:
         action = Reply(validated_action.channel, validated_action.thread_ts,
