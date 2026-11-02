@@ -24,11 +24,11 @@ def dispatch_bridge_control(payload, settings, store, now, *, remote_client=None
         if operation == "stop":
             if result.get("action") != "stop" or result.get("stopped") is not True:
                 raise ValueError("Stop unconfirmed")
-            message = "Swayz worker stop confirmed."
+            message = "Swayz control-service stop recorded; worker execution shutdown not yet verified."
         elif operation == "status":
             if result.get("action") != "status" or type(result.get("stopped")) is not bool:
                 raise ValueError("Status unconfirmed")
-            message = "Swayz worker: STOPPED" if result["stopped"] else "Swayz worker: ENABLED (execution not verified)"
+            message = "Swayz control stop: ENGAGED (worker state unverified)" if result["stopped"] else "Swayz control stop: NOT ENGAGED (worker state unverified)"
         else:
             if result.get("action") != "job_status" or result.get("job_id") != job_id:
                 raise ValueError("Job status unconfirmed")
