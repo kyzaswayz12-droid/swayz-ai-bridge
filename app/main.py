@@ -109,7 +109,7 @@ async def process_message(channel: str, thread_ts: str, provider: str, prompt: s
     await post_message(channel, thread_ts, text)
 
 
-async def process_worker_control(payload, settings, store, now):
+async def process_worker_control(payload, settings, store, now, validated_action):
     """Execute after Slack acknowledgement; do not block its HTTP response."""
     try:
         key_path = os.environ.get("SWAYZ_CONTROL_AUTH_KEY_FILE", "")
@@ -122,9 +122,10 @@ async def process_worker_control(payload, settings, store, now):
             raise ValueError("Invalid worker key file")
         client = RemoteControlClient(key=key_file.read_bytes(), ca_file=ca_path)
         action = dispatch_bridge_control(payload, settings, store, now,
-                                         remote_client=client)
+                                         remote_client=client, validated_action=validated_action)
     except Exception:
-        action = dispatch_bridge_control(payload, settings, store, now)
+        action = Reply(validated_action.channel, validated_action.thread_ts,
+                       "Swayz control unavailable; action NOT confirmed.")
     if isinstance(action, Reply):
         await post_message(action.channel, action.thread_ts, action.text)
 
@@ -154,7 +155,9 @@ async def slack_events(request: Request, background_tasks: BackgroundTasks):
         if os.environ.get("SWAYZ_REMOTE_CONTROL_ENABLED") == "1" and isinstance(payload, dict):
             event = payload.get("event")
             if isinstance(event, dict) and isinstance(event.get("text"), str) and event["text"].strip().lower().startswith("swayz "):
-                background_tasks.add_task(process_worker_control, payload, settings, store, now)
+                validated = dispatch_bridge_control(payload, settings, store, now)
+                if isinstance(validated, Reply):
+                    background_tasks.add_task(process_worker_control, payload, settings, store, now, validated)
                 return {"ok": True}
         control_action = dispatch_bridge_control(payload, settings, store, now)
         if isinstance(control_action, Reply):
