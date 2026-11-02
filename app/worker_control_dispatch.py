@@ -8,10 +8,10 @@ from .control import handle_control_event
 from .core import Ignore, Reply
 
 
-def dispatch_bridge_control(payload, settings, store, now, *, remote_client=None):
+def dispatch_bridge_control(payload, settings, store, now, *, remote_client=None, validated_action=None):
     if remote_client is None:
         return handle_control_event(payload, settings, store, now)
-    action = handle_control_event(payload, settings, store, now)
+    action = validated_action if validated_action is not None else handle_control_event(payload, settings, store, now)
     if not isinstance(action, Reply):
         return action
     parts = payload["event"]["text"].strip().split()
