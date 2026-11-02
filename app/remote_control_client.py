@@ -4,6 +4,7 @@ import hmac
 import json
 import re
 import secrets
+import stat
 import time
 from pathlib import Path
 import httpx
@@ -19,6 +20,8 @@ class RemoteControlClient:
         path = Path(ca_file)
         if path.is_symlink() or not path.is_file():
             raise ValueError("CA certificate required")
+        if path.stat().st_mode & 0o022:
+            raise ValueError("CA certificate must not be writable by group or others")
         self.key = key
         self.ca_file = str(path)
 
