@@ -51,4 +51,9 @@ class WorkerControlClient:
             result = response.json()
             if not isinstance(result, dict) or result.get("action") != action:
                 raise ValueError("Invalid worker response")
+            if action in {"status", "stop"} and type(result.get("stopped")) is not bool:
+                raise ValueError("Invalid worker stop state")
+            if action == "job_status" and (result.get("job_id") != job_id or
+                                           not isinstance(result.get("state"), str)):
+                raise ValueError("Invalid worker job status")
             return result
