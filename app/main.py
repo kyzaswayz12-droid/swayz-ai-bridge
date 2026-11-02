@@ -1,4 +1,5 @@
 """Single-turn Slack router; restrict to a test channel."""
+import asyncio
 import json
 import logging
 import os
@@ -6,6 +7,9 @@ import time
 from contextlib import asynccontextmanager
 
 import httpx
+from app.worker_control_dispatch import dispatch_bridge_control
+from app.remote_control_client import RemoteControlClient
+from app.core import Ignore
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from app.core import (
     GENERIC_ERROR_TEXT, MAX_REPLY_CHARS, CallModel, Challenge, MissingConfig,
@@ -106,6 +110,27 @@ async def process_message(channel: str, thread_ts: str, provider: str, prompt: s
     await post_message(channel, thread_ts, text)
 
 
+async def process_worker_control(payload, settings, store, now, validated_action):
+    """Execute after Slack acknowledgement; do not block its HTTP response."""
+    try:
+        key_path = os.environ.get("SWAYZ_CONTROL_AUTH_KEY_FILE", "")
+        ca_path = os.environ.get("SWAYZ_CONTROL_CA_FILE", "")
+        if not key_path or not ca_path:
+            raise ValueError("Worker control credentials not configured")
+        from pathlib import Path
+        key_file = Path(key_path)
+        if key_file.is_symlink() or not key_file.is_file():
+            raise ValueError("Invalid worker key file")
+        client = RemoteControlClient(key=key_file.read_bytes(), ca_file=ca_path)
+        action = await asyncio.to_thread(dispatch_bridge_control, payload, settings, store, now,
+                                         remote_client=client, validated_action=validated_action)
+    except Exception:
+        action = Reply(validated_action.channel, validated_action.thread_ts,
+                       "Swayz control unavailable; action NOT confirmed.")
+    if isinstance(action, Reply):
+        await post_message(action.channel, action.thread_ts, action.text)
+
+
 @app.get("/health")
 async def health():
     return {"ok": True}
@@ -124,7 +149,25 @@ async def slack_events(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=400, detail="Invalid JSON")
     if isinstance(payload, dict) and payload.get("type") == "url_verification":
         return {"challenge": str(payload.get("challenge", ""))}
-    action = handle_event(payload, Settings.from_env(os.environ), get_store(), time.time())
+    settings = Settings.from_env(os.environ)
+    store = get_store()
+    now = time.time()
+    if os.environ.get("SWAYZ_CONTROL_ROUTING_ENABLED") == "1":
+        if os.environ.get("SWAYZ_REMOTE_CONTROL_ENABLED") == "1" and isinstance(payload, dict):
+            event = payload.get("event")
+            if isinstance(event, dict) and isinstance(event.get("text"), str) and event["text"].strip().lower().startswith("swayz "):
+                validated = dispatch_bridge_control(payload, settings, store, now)
+                if isinstance(validated, Reply):
+                    background_tasks.add_task(process_worker_control, payload, settings, store, now, validated)
+                return {"ok": True}
+        control_action = dispatch_bridge_control(payload, settings, store, now)
+        if isinstance(control_action, Reply):
+            background_tasks.add_task(post_message, control_action.channel,
+                                      control_action.thread_ts, control_action.text)
+            return {"ok": True}
+        if isinstance(control_action, Ignore) and control_action.reason != "not_control":
+            return {"ok": True}
+    action = handle_event(payload, settings, store, now)
     if isinstance(action, Challenge):
         return {"challenge": action.value}
     if isinstance(action, Reply):

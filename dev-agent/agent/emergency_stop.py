@@ -9,12 +9,12 @@ from pathlib import Path
 class EmergencyStop:
     def __init__(self, path: str):
         if path == ":memory:":
-            self.db = sqlite3.connect(path, isolation_level=None, timeout=10)
+            self.db = sqlite3.connect(path, isolation_level=None, timeout=10, check_same_thread=False)
         else:
             p=Path(path)
             if not p.parent.is_dir() or p.is_symlink():
                 raise ValueError("Invalid emergency-stop database path")
-            self.db = sqlite3.connect(str(p), isolation_level=None, timeout=10)
+            self.db = sqlite3.connect(str(p), isolation_level=None, timeout=10, check_same_thread=False)
         self.db.execute("PRAGMA busy_timeout=10000")
         self.db.execute("""CREATE TABLE IF NOT EXISTS agent_control(
             id INTEGER PRIMARY KEY CHECK(id=1),

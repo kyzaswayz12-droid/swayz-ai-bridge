@@ -8,7 +8,7 @@ from agent.emergency_stop import EmergencyStop
 def cards(folder):
     p=Path(folder)
     common={"verified_by_owner":True,"verified_on":"2026-10-11",
-            "expires_on":"2026-10-18","source_url":"https://example.com/pricing"}
+            "expires_on":"2099-12-31","source_url":"https://example.com/pricing"}
     a={**common,"provider":"openai","model":"gpt-5-mini",
        "input_per_million_usd":"0.25","output_per_million_usd":"2.00"}
     b={**common,"provider":"anthropic","model":"claude-haiku-4-5-20251001",
