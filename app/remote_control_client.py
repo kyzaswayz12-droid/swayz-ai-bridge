@@ -45,4 +45,9 @@ class RemoteControlClient:
             data = response.json()
         if not isinstance(data, dict) or data.get("action") != action:
             raise ValueError("Unexpected control response")
+        if action in ("status", "stop") and type(data.get("stopped")) is not bool:
+            raise ValueError("Invalid worker stop state")
+        if action == "job_status" and (data.get("job_id") != job_id or
+                                       data.get("state") not in ("not_found", "admitted", "running", "passed", "failed", "blocked")):
+            raise ValueError("Invalid worker job state")
         return data
