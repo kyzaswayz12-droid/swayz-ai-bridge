@@ -23,12 +23,12 @@ class WorkerControlDispatchTests(unittest.TestCase):
 
     def test_status_confirmed(self):
         self.client.request.return_value = {"action": "status", "stopped": True}
-        self.assertIn("STOPPED", self.dispatch().text)
+        self.assertIn("ENGAGED", self.dispatch().text)
 
     def test_stop_confirmed(self):
         self.payload["event"]["text"] = "swayz stop"
         self.client.request.return_value = {"action": "stop", "stopped": True}
-        self.assertIn("stop confirmed", self.dispatch().text)
+        self.assertIn("stop recorded", self.dispatch().text)
 
     def test_stop_not_confirmed(self):
         self.payload["event"]["text"] = "swayz stop"
