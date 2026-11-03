@@ -120,3 +120,66 @@ def validate_signed_admitted_worker_plan(
             or job.commit_sha != expected_commit_sha):
         raise PermissionError("Signed job identity mismatch")
     return validate_admitted_worker_plan(**plan_args)
+
+
+def validate_reserved_signed_worker_plan(
+    *, job_db: str, budget_db: str, request_id: str, provider: str,
+    now, **signed_plan_args,
+):
+    """Check durable daily admission and a reserved request, without writing.
+
+    A reservation check is not a payment guarantee, and this function never
+    authorises execution. The future dispatcher must use transactional
+    reservation APIs and recheck the stop at the actual execution boundary.
+    """
+    import sqlite3
+    from datetime import datetime, timezone
+    from decimal import Decimal, InvalidOperation
+
+    if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
+        raise PermissionError("Timezone-aware clock required")
+    if provider not in ("openai", "anthropic"):
+        raise PermissionError("Provider not approved")
+    if not isinstance(request_id, str) or not request_id:
+        raise PermissionError("Request ID required")
+
+    def query(path, statement, params):
+        p = Path(path)
+        if not p.is_absolute() or p.is_symlink() or not p.is_file():
+            raise PermissionError("Required ledger missing or unsafe")
+        try:
+            with sqlite3.connect(p.as_uri() + "?mode=ro", uri=True, timeout=5) as db:
+                return db.execute(statement, params).fetchall()
+        except sqlite3.Error as exc:
+            raise PermissionError("Required ledger unreadable") from exc
+
+    day = now.astimezone(timezone.utc).date().isoformat()
+    job_id = signed_plan_args.get("job_id")
+    admitted = query(job_db,
+        "SELECT day_utc FROM admitted_jobs WHERE job_id=?", (job_id,))
+    if admitted != [(day,)]:
+        raise PermissionError("Daily job admission missing or expired")
+    count = query(job_db,
+        "SELECT COUNT(*) FROM admitted_jobs WHERE day_utc=?", (day,))
+    if len(count) != 1 or not 1 <= count[0][0] <= 20:
+        raise PermissionError("Daily job quota invalid")
+    reservation = query(budget_db,
+        "SELECT provider,day_utc,reserved_gbp,status,actual_gbp FROM gbp_reservations WHERE request_id=?",
+        (request_id,))
+    if len(reservation) != 1 or reservation[0][0:2] != (provider, day):
+        raise PermissionError("API reservation missing or expired")
+    if reservation[0][3] != "reserved" or reservation[0][4] is not None:
+        raise PermissionError("API reservation not pending")
+    rows = query(budget_db,
+        "SELECT reserved_gbp,actual_gbp FROM gbp_reservations WHERE day_utc=?", (day,))
+    try:
+        used = sum((Decimal(actual if actual is not None else held)
+                    for held, actual in rows), Decimal("0"))
+        if not used.is_finite() or used < 0 or used > Decimal("5.00"):
+            raise PermissionError("GBP budget limit exceeded or invalid")
+        reserved = Decimal(reservation[0][2])
+        if not reserved.is_finite() or reserved <= 0:
+            raise PermissionError("Invalid API reservation amount")
+    except (InvalidOperation, TypeError, ValueError) as exc:
+        raise PermissionError("Malformed budget ledger") from exc
+    return validate_signed_admitted_worker_plan(**signed_plan_args)
