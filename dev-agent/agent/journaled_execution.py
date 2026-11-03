@@ -19,10 +19,10 @@ def simulate_journaled_execution(*, job_id: str, journal_path: str,
                                   mock_executor=None, **validation):
     if mock_executor is None or getattr(mock_executor, "swayz_test_double", False) is not True:
         raise PermissionError("Trusted test double required")
-    if validation.get("job_id") != job_id:
-        raise PermissionError("Job identity mismatch")
+    if "job_id" in validation:
+        raise PermissionError("Job identity must be supplied only once")
     # Validation must complete before any journal state transition.
-    plan = validate_reserved_signed_worker_plan(**validation)
+    plan = validate_reserved_signed_worker_plan(job_id=job_id, **validation)
     if plan.lifecycle.executes:
         raise PermissionError("Executable plan rejected")
     journal = WorkerJournal(journal_path)
