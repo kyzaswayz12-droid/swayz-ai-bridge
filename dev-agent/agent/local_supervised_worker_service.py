@@ -91,7 +91,6 @@ def run_operator_supervised_worker(
     be read from the authoritative control database.
     """
     from .persistent_stop_guard import PersistentStopGuard
-    from .supervised_lifecycle_adapter import run_supervised_lifecycle
     if "job_id" in validation or "control_db" in validation or "journal_db" in validation:
         raise PermissionError("Server-owned identities and state paths")
     if not isinstance(job_id, str) or not job_id:
