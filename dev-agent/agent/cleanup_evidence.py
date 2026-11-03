@@ -21,4 +21,8 @@ def cleanup_evidence_verified(*, container_name, inspect_exit_code,
         return False
     if not isinstance(inspect_stderr, str):
         return False
-    return inspect_stderr.strip() == f"Error: No such object: {container_name}"
+    message = inspect_stderr.strip().lower()
+    return message in (
+        f"error: no such object: {container_name}".lower(),
+        f"error response from daemon: no such object: {container_name}".lower(),
+    )
