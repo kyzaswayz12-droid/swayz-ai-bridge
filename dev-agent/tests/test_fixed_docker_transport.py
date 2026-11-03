@@ -19,7 +19,7 @@ class FixedDockerTransportTests(unittest.TestCase):
         self.workspace = Path(self.temp.name) / "job1"
         self.workspace.mkdir()
         self.plan = plan_worker_lifecycle("job1", DIGEST, workspace=str(self.workspace))
-        self.transport = FixedDockerTransport(self.plan)
+        self.transport = FixedDockerTransport(self.plan, require_running=lambda: None)
 
     @patch("agent.fixed_docker_transport.subprocess.run")
     def test_fixed_run_command_accepted(self, run):
@@ -56,4 +56,4 @@ class FixedDockerTransportTests(unittest.TestCase):
     def test_plan_without_workspace_rejected(self):
         plan = plan_worker_lifecycle("job1", DIGEST)
         with self.assertRaises(PermissionError):
-            FixedDockerTransport(plan)
+            FixedDockerTransport(plan, require_running=lambda: None)
