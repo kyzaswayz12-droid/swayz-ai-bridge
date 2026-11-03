@@ -22,7 +22,7 @@ class FixedTransportIntegrationTests(unittest.TestCase):
         workspace = Path(self.temp.name) / "job1"
         workspace.mkdir()
         self.plan = plan_worker_lifecycle("job1", DIGEST, workspace=str(workspace))
-        self.transport = FixedDockerTransport(self.plan)
+        self.transport = FixedDockerTransport(self.plan, require_running=lambda: None)
 
     @patch("agent.fixed_docker_transport.subprocess.run")
     def test_supervised_success_with_verified_cleanup(self, run):
