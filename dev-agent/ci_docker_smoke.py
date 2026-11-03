@@ -1,13 +1,14 @@
-"""CI-only supervised Docker smoke test.
+"""Disposable supervised Docker smoke test for CI or explicit local acceptance.
 
-Runs a disposable, network-disabled, read-only container on the GitHub
-runner. No credentials, external APIs, GitHub writes or production service.
+Runs a disposable, network-disabled, read-only container. No credentials,
+external APIs, GitHub writes or production control database.
 """
 import hashlib
 import os
 import sqlite3
 import subprocess
 import tempfile
+import argparse
 from pathlib import Path
 
 from agent.worker_lifecycle import plan_worker_lifecycle
@@ -16,8 +17,13 @@ from agent.supervised_lifecycle_adapter import run_supervised_lifecycle
 
 
 def main():
-    if os.environ.get("GITHUB_ACTIONS") != "true":
-        raise PermissionError("CI-only smoke test")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--supervised-local-smoke", action="store_true")
+    args = parser.parse_args()
+    if os.environ.get("GITHUB_ACTIONS") != "true" and not args.supervised_local_smoke:
+        raise PermissionError("CI or explicit supervised local smoke only")
+    if args.supervised_local_smoke and os.geteuid() == 0:
+        raise PermissionError("Do not run the supervised smoke as root")
     digest_ref = subprocess.check_output(
         ["docker", "image", "inspect", "python:3.12-slim",
          "--format", "{{index .RepoDigests 0}}"], text=True, timeout=10).strip()
@@ -58,7 +64,7 @@ def main():
             print("SWAYZ_CI_INSPECT_EXIT", inspect.returncode)
             print("SWAYZ_CI_INSPECT_STDERR", repr(inspect.stderr[:500]))
             raise RuntimeError(f"Supervised Docker smoke failed: {result.state}")
-        print("SWAYZ_CI_REAL_DOCKER_SMOKE_PASSED")
+        print("SWAYZ_SUPERVISED_DOCKER_SMOKE_PASSED")
 
 
 if __name__ == "__main__":
