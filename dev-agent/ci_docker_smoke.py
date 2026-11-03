@@ -64,6 +64,24 @@ def main():
             print("SWAYZ_CI_INSPECT_EXIT", inspect.returncode)
             print("SWAYZ_CI_INSPECT_STDERR", repr(inspect.stderr[:500]))
             raise RuntimeError(f"Supervised Docker smoke failed: {result.state}")
+        # Verify the same persistent stop database prevents a second real
+        # Docker invocation. The second job is never launched.
+        with sqlite3.connect(db_path) as db:
+            db.execute("UPDATE agent_control SET stopped=1 WHERE id=1")
+        blocked_plan = plan_worker_lifecycle("job2", digest, workspace=str(workspace))
+        try:
+            blocked_transport = build_guarded_transport(
+                blocked_plan, server_control_db=str(db_path))
+        except PermissionError:
+            pass
+        else:
+            raise RuntimeError("Emergency stop failed to block new job")
+        absent = subprocess.run(
+            ["docker", "inspect", blocked_plan.name],
+            capture_output=True, text=True, timeout=10, check=False)
+        if absent.returncode != 1 or "no such object" not in absent.stderr.lower():
+            raise RuntimeError("Blocked job container absence unverified")
+        print("SWAYZ_CI_STOP_BLOCKS_NEW_DOCKER_JOB")
         print("SWAYZ_SUPERVISED_DOCKER_SMOKE_PASSED")
 
 
