@@ -40,7 +40,7 @@ class JournaledExecutionTests(unittest.TestCase):
         gate.return_value = SimpleNamespace(lifecycle=SimpleNamespace(executes=False))
         result = simulate_journaled_execution(
             job_id="job1", journal_path=self.path,
-            mock_executor=MockExecutor(), **{"job_id": "job1"})
+            mock_executor=MockExecutor())
         self.assertEqual(result.state, "passed")
         self.assertFalse(result.docker_executed)
         self.assertEqual(self.state(), "passed")
@@ -51,7 +51,7 @@ class JournaledExecutionTests(unittest.TestCase):
         runner = MockExecutor()
         with self.assertRaises(PermissionError):
             simulate_journaled_execution(job_id="job1", journal_path=self.path,
-                mock_executor=runner, **{"job_id": "job1"})
+                mock_executor=runner)
         self.assertEqual(self.state(), "admitted")
         self.assertEqual(runner.calls, 0)
 
@@ -60,7 +60,7 @@ class JournaledExecutionTests(unittest.TestCase):
         gate.return_value = SimpleNamespace(lifecycle=SimpleNamespace(executes=False))
         with self.assertRaises(RuntimeError):
             simulate_journaled_execution(job_id="job1", journal_path=self.path,
-                mock_executor=MockExecutor(failure=True), **{"job_id": "job1"})
+                mock_executor=MockExecutor(failure=True))
         self.assertEqual(self.state(), "blocked")
 
     @patch("agent.journaled_execution.validate_reserved_signed_worker_plan")
@@ -73,7 +73,7 @@ class JournaledExecutionTests(unittest.TestCase):
         runner = MockExecutor()
         with self.assertRaises(PermissionError):
             simulate_journaled_execution(job_id="job1", journal_path=self.path,
-                mock_executor=runner, **{"job_id": "job1"})
+                mock_executor=runner)
         self.assertEqual(runner.calls, 0)
 
     @patch("agent.journaled_execution.validate_reserved_signed_worker_plan")
@@ -81,5 +81,5 @@ class JournaledExecutionTests(unittest.TestCase):
         gate.return_value = SimpleNamespace(lifecycle=SimpleNamespace(executes=False))
         with self.assertRaises(ValueError):
             simulate_journaled_execution(job_id="job1", journal_path=self.path,
-                mock_executor=MockExecutor("unexpected"), **{"job_id": "job1"})
+                mock_executor=MockExecutor("unexpected"))
         self.assertEqual(self.state(), "blocked")
