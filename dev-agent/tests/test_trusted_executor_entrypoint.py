@@ -8,13 +8,13 @@ from agent.trusted_executor_entrypoint import _protected_json, main
 
 class OperatorEntrypointTests(unittest.TestCase):
     def test_request_outside_protected_inbox_rejected(self):
-        with patch("agent.trusted_executor_entrypoint.os.geteuid", return_value=0), \\
+        with patch("agent.trusted_executor_entrypoint.os.geteuid", return_value=0), \
              patch("agent.trusted_executor_entrypoint._protected_json", return_value={}):
             with self.assertRaises(PermissionError):
                 main(["--supervised-once", "--request", "/tmp/job1.json"])
 
     def test_request_filename_must_match_job(self):
-        with patch("agent.trusted_executor_entrypoint.os.geteuid", return_value=0), \\
+        with patch("agent.trusted_executor_entrypoint.os.geteuid", return_value=0), \
              patch("agent.trusted_executor_entrypoint._protected_json", side_effect=[{}, {"job_id": "other"}]):
             with self.assertRaises(PermissionError):
                 main(["--supervised-once", "--request", "/var/lib/swayz-executor/requests/job1.json"])
