@@ -68,7 +68,10 @@ def main():
         # Docker invocation. The second job is never launched.
         with sqlite3.connect(db_path) as db:
             db.execute("UPDATE agent_control SET stopped=1 WHERE id=1")
-        blocked_plan = plan_worker_lifecycle("job2", digest, workspace=str(workspace))
+        blocked_workspace = root / "job2"
+        blocked_workspace.mkdir(mode=0o555)
+        blocked_workspace.chmod(0o555)
+        blocked_plan = plan_worker_lifecycle("job2", digest, workspace=str(blocked_workspace))
         try:
             blocked_transport = build_guarded_transport(
                 blocked_plan, server_control_db=str(db_path))
