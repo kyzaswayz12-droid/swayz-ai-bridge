@@ -95,6 +95,10 @@ def run_operator_supervised_worker(
         raise PermissionError("Server-owned identities and state paths")
     if not isinstance(job_id, str) or not job_id:
         raise PermissionError("Job ID required")
+    # The privileged path must never accept caller-provided execution hooks.
+    forbidden = {"transport_factory", "lifecycle_runner", "executor", "authorised"}
+    if forbidden.intersection(validation):
+        raise PermissionError("Execution implementation is server-owned")
     # Reject an engaged or missing stop before expensive verification.
     guard = PersistentStopGuard(server_control_db)
     guard.require_running()
@@ -127,6 +131,7 @@ def run_operator_supervised_worker(
                            exit_code=result.exit_code,
                            excerpt=(result.output or "")[:12000])
         return SupervisedWorkerOutcome(
-            job_id, state, result.cleanup_verified, True)
+            job_id, state, result.cleanup_verified,
+            bool(getattr(transport, "_run_attempted", False)))
     finally:
         journal.close()
