@@ -14,6 +14,9 @@ class CleanupEvidenceTests(unittest.TestCase):
     def test_expected_absence_evidence(self):
         self.assertTrue(self.check())
 
+    def test_lowercase_docker_absence_response(self):
+        self.assertTrue(self.check(inspect_stderr="error: no such object: swayz-test-job1"))
+
     def test_daemon_unhealthy_rejected(self):
         self.assertFalse(self.check(daemon_healthy=False))
 
