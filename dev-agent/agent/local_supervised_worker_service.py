@@ -76,3 +76,58 @@ def run_local_supervised_worker(
             bool(getattr(result, "docker_executed", False)))
     finally:
         journal.close()
+
+
+def run_operator_supervised_worker(
+    *, job_id: str, journal_path: str, server_control_db: str,
+    **validation,
+) -> SupervisedWorkerOutcome:
+    """Explicit local operator path; no listener, scheduler, or API endpoint.
+
+    Caller is a trusted privileged operator entrypoint, never a model-generated
+    request. It must authenticate the operator, pin paths and load signing
+    credentials from protected server configuration. The production stop must
+    be read from the authoritative control database.
+    """
+    from .persistent_stop_guard import PersistentStopGuard
+    from .fixed_docker_transport import FixedDockerTransport
+    from .supervised_lifecycle_adapter import run_supervised_lifecycle
+    if "job_id" in validation or "control_db" in validation or "journal_db" in validation:
+        raise PermissionError("Server-owned identities and state paths")
+    if not isinstance(job_id, str) or not job_id:
+        raise PermissionError("Job ID required")
+    # Reject an engaged or missing stop before expensive verification.
+    guard = PersistentStopGuard(server_control_db)
+    guard.require_running()
+    plan = validate_reserved_signed_worker_plan(
+        job_id=job_id, control_db=server_control_db,
+        journal_db=journal_path, **validation)
+    if plan.lifecycle.executes or plan.lifecycle.name != "swayz-test-" + job_id:
+        raise PermissionError("Invalid worker lifecycle")
+    # This constructor re-derives the fixed Docker command and rejects
+    # unmounted, writable, or unexpected command plans.
+    transport = FixedDockerTransport(plan.lifecycle, require_running=guard.require_running)
+    journal = WorkerJournal(journal_path)
+    try:
+        if journal.status(job_id) != ("admitted", None, ""):
+            raise PermissionError("Job not admitted or already claimed")
+        # Atomic state transition prevents two operators from claiming one job.
+        journal.transition(job_id, "admitted", "running")
+        try:
+            result = run_supervised_lifecycle(
+                plan.lifecycle, transport=transport,
+                daemon_probe=transport.daemon_healthy)
+        except BaseException:
+            journal.transition(job_id, "running", "blocked",
+                               excerpt="Supervised execution interrupted")
+            raise
+        state = ("passed" if result.cleanup_verified and result.state == "passed"
+                 else "failed" if result.cleanup_verified and result.state == "failed"
+                 else "blocked")
+        journal.transition(job_id, "running", state,
+                           exit_code=result.exit_code,
+                           excerpt=(result.output or "")[:12000])
+        return SupervisedWorkerOutcome(
+            job_id, state, result.cleanup_verified, True)
+    finally:
+        journal.close()
