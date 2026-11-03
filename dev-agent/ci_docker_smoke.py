@@ -48,6 +48,15 @@ def main():
         result = run_supervised_lifecycle(
             plan, transport=transport, daemon_probe=transport.daemon_healthy)
         if result.state != "passed" or not result.cleanup_verified:
+            # CI uses only disposable test data; report failure evidence without
+            # relaxing cleanup checks or printing credentials.
+            print("SWAYZ_CI_DOCKER_STATE", result.state)
+            print("SWAYZ_CI_DOCKER_EXIT", result.exit_code)
+            print("SWAYZ_CI_DOCKER_OUTPUT", result.output[:1500])
+            inspect = subprocess.run(["docker", "inspect", plan.name],
+                capture_output=True, text=True, timeout=10, check=False)
+            print("SWAYZ_CI_INSPECT_EXIT", inspect.returncode)
+            print("SWAYZ_CI_INSPECT_STDERR", repr(inspect.stderr[:500]))
             raise RuntimeError(f"Supervised Docker smoke failed: {result.state}")
         print("SWAYZ_CI_REAL_DOCKER_SMOKE_PASSED")
 
