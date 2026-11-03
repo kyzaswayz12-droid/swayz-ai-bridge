@@ -67,3 +67,35 @@ def validate_trusted_worker_plan(
 def execute_trusted_worker(*args, **kwargs):
     """Explicitly refuse execution until a separate privileged service exists."""
     raise PermissionError("Production Docker execution is not enabled")
+
+
+def validate_admitted_worker_plan(*, control_db: str, journal_db: str, **plan_args):
+    """Offline gate for a previously admitted job; never executes Docker.
+
+    Both databases must exist. Read-only queries cannot create or enable
+    anything. This check is NOT sufficient for production authorisation:
+    the future service must independently verify signed provenance, budget
+    reservations and recheck the stop immediately before execution.
+    """
+    import sqlite3
+
+    def read_one(path, statement, parameters=()):
+        p = Path(path)
+        if not p.is_absolute() or p.is_symlink() or not p.is_file():
+            raise PermissionError("Required state database missing or unsafe")
+        try:
+            with sqlite3.connect(p.as_uri() + "?mode=ro", uri=True, timeout=5) as db:
+                return db.execute(statement, parameters).fetchone()
+        except sqlite3.Error as exc:
+            raise PermissionError("Required state database unreadable") from exc
+
+    stop = read_one(control_db, "SELECT stopped FROM agent_control WHERE id=1")
+    if stop != (0,):
+        raise PermissionError("Emergency stop engaged or invalid")
+    job_id = plan_args.get("job_id")
+    if not isinstance(job_id, str):
+        raise PermissionError("Job ID required")
+    admitted = read_one(journal_db, "SELECT state FROM worker_jobs WHERE job_id=?", (job_id,))
+    if admitted != ("admitted",):
+        raise PermissionError("Job is not admitted")
+    return validate_trusted_worker_plan(**plan_args)
