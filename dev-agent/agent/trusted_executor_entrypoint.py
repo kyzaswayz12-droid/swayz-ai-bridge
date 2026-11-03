@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 import stat
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -42,7 +43,13 @@ def main(argv=None):
     if os.geteuid() != 0 or not args.supervised_once:
         raise PermissionError("Explicit root operator supervision required")
     config = _protected_json(CONFIG)
+    request_path = Path(args.request)
+    if (request_path.parent != Path("/var/lib/swayz-executor/requests")
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}\\.json", request_path.name)):
+        raise PermissionError("Request must use the protected job inbox")
     request = _protected_json(args.request)
+    if request.get("job_id") != request_path.stem:
+        raise PermissionError("Request job identity does not match inbox filename")
     if set(config) != {"job_db", "budget_db", "signing_key_file", "approved_image_digests"}:
         raise PermissionError("Invalid executor configuration")
     if set(request) != {"job_id", "request_id", "provider", "raw_hex", "signature",
