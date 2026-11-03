@@ -11,7 +11,9 @@ from .worker_lifecycle import WorkerLifecycle, plan_worker_lifecycle
 class FixedDockerTransport:
     """Execute only the three fixed commands for a single validated lifecycle."""
 
-    def __init__(self, plan: WorkerLifecycle):
+    def __init__(self, plan: WorkerLifecycle, *, require_running):
+        if not callable(require_running):
+            raise PermissionError("Authoritative stop check required")
         if not isinstance(plan, WorkerLifecycle) or plan.executes:
             raise PermissionError("Invalid worker lifecycle")
         if not plan.name.startswith("swayz-test-"):
@@ -31,6 +33,8 @@ class FixedDockerTransport:
         if plan != expected:
             raise PermissionError("Docker command differs from fixed policy")
         self.plan = plan
+        self.require_running = require_running
+        self._run_attempted = False
         self.allowed = (plan.run_argv, plan.kill_argv, plan.inspect_argv)
 
     def __call__(self, argv, *, capture_output, text, timeout, check):
@@ -41,6 +45,14 @@ class FixedDockerTransport:
         maximum = self.plan.timeout_seconds if tuple(argv) == self.plan.run_argv else 10
         if type(timeout) is not int or timeout < 1 or timeout > maximum:
             raise PermissionError("Unapproved command timeout")
+        if tuple(argv) == self.plan.run_argv:
+            if self._run_attempted:
+                raise PermissionError("Worker run command cannot be replayed")
+            # The stop check is mandatory immediately before the only run.
+            self.require_running()
+            self._run_attempted = True
+        elif not self._run_attempted:
+            raise PermissionError("Cleanup commands require a prior run attempt")
         return subprocess.run(
             argv, capture_output=True, text=True, timeout=timeout,
             check=False, stdin=subprocess.DEVNULL)
