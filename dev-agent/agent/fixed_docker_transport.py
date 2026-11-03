@@ -17,8 +17,6 @@ class FixedDockerTransport:
         if not plan.name.startswith("swayz-test-"):
             raise PermissionError("Invalid worker identity")
         job_id = plan.name.removeprefix("swayz-test-")
-        if "python@" not in plan.run_argv:
-            raise PermissionError("Missing immutable image reference")
         image = next((v for v in plan.run_argv if v.startswith("python@sha256:")), None)
         if image is None:
             raise PermissionError("Missing approved image digest")
