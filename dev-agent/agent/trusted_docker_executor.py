@@ -178,7 +178,7 @@ def validate_reserved_signed_worker_plan(
         if not used.is_finite() or used < 0 or used > Decimal("5.00"):
             raise PermissionError("GBP budget limit exceeded or invalid")
         reserved = Decimal(reservation[0][2])
-        if not reserved.is_finite() or reserved <= 0:
+        if not reserved.is_finite() or reserved <= 0 or reserved > Decimal("5.00"):
             raise PermissionError("Invalid API reservation amount")
     except (InvalidOperation, TypeError, ValueError) as exc:
         raise PermissionError("Malformed budget ledger") from exc
