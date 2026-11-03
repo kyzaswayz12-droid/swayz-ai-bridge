@@ -68,7 +68,9 @@ class TrustedExecutorManifestTests(unittest.TestCase):
 
     def test_symlink_in_snapshot_rejected(self):
         link = self.snapshot / "link"
+        self.snapshot.chmod(0o755)
         link.symlink_to(self.file)
+        self.snapshot.chmod(0o555)
         with self.assertRaises(PermissionError):
             self.validate()
 
