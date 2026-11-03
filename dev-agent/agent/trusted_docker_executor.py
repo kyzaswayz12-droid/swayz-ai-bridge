@@ -99,3 +99,24 @@ def validate_admitted_worker_plan(*, control_db: str, journal_db: str, **plan_ar
     if admitted != ("admitted",):
         raise PermissionError("Job is not admitted")
     return validate_trusted_worker_plan(**plan_args)
+
+
+def validate_signed_admitted_worker_plan(
+    *, raw: bytes, signature: str, secret: bytes,
+    expected_manifest: str, expected_repository: str,
+    expected_commit_sha: str, **plan_args,
+):
+    """Verify signed job identity before read-only admission and plan checks.
+
+    No execution capability is granted. The future privileged service must
+    separately verify immutable checkout provenance, durable replay rejection,
+    quota/budget reservation and stop state at the execution boundary.
+    """
+    from .signed_handoff import verify_manifest_job
+
+    job = verify_manifest_job(raw, signature, secret, expected_manifest)
+    if (job.job_id != plan_args.get("job_id")
+            or job.repository != expected_repository
+            or job.commit_sha != expected_commit_sha):
+        raise PermissionError("Signed job identity mismatch")
+    return validate_admitted_worker_plan(**plan_args)
