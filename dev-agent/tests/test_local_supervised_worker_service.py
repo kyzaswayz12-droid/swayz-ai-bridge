@@ -35,9 +35,19 @@ class LocalSupervisedWorkerServiceTests(unittest.TestCase):
                                docker_executed=False)
 
     def invoke(self, **changes):
+        def factory(plan, *, server_control_db):
+            return self.factory(plan, server_control_db=server_control_db)
+        def runner(plan, *, transport, daemon_probe):
+            return self.runner(plan, transport=transport, daemon_probe=daemon_probe)
+        factory.swayz_test_double = True
+        runner.swayz_test_double = True
         args = dict(job_id="job1", journal_path=self.journal_path,
                     server_control_db="/server/control.db",
-                    transport_factory=self.factory, lifecycle_runner=self.runner)
+                    transport_factory=factory, lifecycle_runner=runner)
+        for key in ("transport_factory", "lifecycle_runner"):
+            if key in changes:
+                fn = changes[key]
+                fn.swayz_test_double = True
         args.update(changes)
         return run_local_supervised_worker(**args)
 
