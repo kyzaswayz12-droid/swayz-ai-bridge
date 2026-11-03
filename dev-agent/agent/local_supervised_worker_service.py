@@ -32,6 +32,9 @@ def run_local_supervised_worker(
     dependencies are for isolated testing; production deployment must pin
     them in a separately reviewed, privileged entrypoint.
     """
+    if (getattr(transport_factory, "swayz_test_double", False) is not True
+            or getattr(lifecycle_runner, "swayz_test_double", False) is not True):
+        raise PermissionError("Only test-only service dependencies permitted")
     if "job_id" in validation or "control_db" in validation:
         raise PermissionError("Job identity and control path are server-selected")
     if not isinstance(job_id, str) or not job_id:
