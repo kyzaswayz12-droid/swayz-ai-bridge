@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from .trusted_docker_executor import validate_reserved_signed_worker_plan
 from .worker_journal import WorkerJournal
 from .guarded_transport_factory import build_guarded_transport
+from .fixed_docker_transport import FixedDockerTransport
 from .supervised_lifecycle_adapter import run_supervised_lifecycle
 
 
