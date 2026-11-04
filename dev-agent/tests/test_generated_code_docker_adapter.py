@@ -16,7 +16,7 @@ class GeneratedCodeDockerAdapterTests(unittest.TestCase):
         self.snapshots.mkdir()
         self.calls = []
 
-    def run(self, plan, executor=None):
+    def run_adapter(self, plan, executor=None):
         def trusted(**kwargs):
             self.calls.append(kwargs)
             return {"state":"passed","cleanup_verified":True}
@@ -31,7 +31,7 @@ class GeneratedCodeDockerAdapterTests(unittest.TestCase):
             Change(path, content) for path, content in changes.items()))
 
     def test_generated_test_snapshot_is_verified_and_submitted(self):
-        result = self.run(self.plan({"tests/test_fix.py":
+        result = self.run_adapter(self.plan({"tests/test_fix.py":
             "import unittest\nclass TestFix(unittest.TestCase):\n"
             " def test_ok(self): self.assertEqual(1, 1)\n"}))
         self.assertEqual(result["state"],"passed")
