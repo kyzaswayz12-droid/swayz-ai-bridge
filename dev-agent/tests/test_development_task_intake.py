@@ -54,6 +54,14 @@ class DevelopmentTaskIntakeTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.submit(task=" ")
 
+    def test_incompatible_queue_does_not_consume_quota(self):
+        with sqlite3.connect(self.queue) as db:
+            db.execute("DROP TABLE development_tasks")
+            db.execute("CREATE TABLE development_tasks(job_id TEXT)")
+        with self.assertRaises(PermissionError):
+            self.submit()
+        self.assertFalse(Path(self.jobs).exists())
+
     def test_missing_queue_refused(self):
         Path(self.queue).unlink()
         with self.assertRaises(PermissionError):
