@@ -33,3 +33,18 @@ def prepare_next_handoff(*, queue_db, job_db, control_db):
         "job_id": job_id,
         "task": selected["task"],
     }
+
+
+def select_for_provider_review(*, queue_db, job_db, control_db):
+    """Select an admitted task without claiming it before AI review.
+
+    The existing supervised cycle owns the sole atomic claim AFTER review.
+    This is read-only and cannot authorise paid calls or execution.
+    """
+    selected = next_queued_job(
+        queue_db=queue_db, job_db=job_db, control_db=control_db
+    )
+    if selected is None:
+        return {"state": "empty"}
+    return {"state": "queued_for_review", "job_id": selected["job_id"],
+            "task": selected["task"]}
