@@ -41,17 +41,17 @@ class GeneratedCodeDockerAdapterTests(unittest.TestCase):
 
     def test_no_test_rejected_without_execution(self):
         with self.assertRaises(PermissionError):
-            self.run(self.plan({"docs/README.md":"not tested"}))
+            self.run_adapter(self.plan({"docs/README.md":"not tested"}))
         self.assertEqual(self.calls,[])
 
     def test_source_changes_rejected_until_checkout_is_verified(self):
         with self.assertRaises(PermissionError):
-            self.run(self.plan({"agent/worker.py":"x=1",
+            self.run_adapter(self.plan({"agent/worker.py":"x=1",
                 "tests/test_worker.py":"assert True"}))
         self.assertEqual(self.calls,[])
 
     def test_cleanup_failure_blocks(self):
-        result=self.run(self.plan({"tests/test_fix.py":"assert True"}),
+        result=self.run_adapter(self.plan({"tests/test_fix.py":"assert True"}),
             executor=lambda **kwargs:{"state":"passed","cleanup_verified":False})
         self.assertEqual(result["state"],"blocked")
 
