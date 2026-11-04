@@ -46,6 +46,13 @@ class DevelopControlIntegrationTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             self.service.handle(raw, sig, now=1000)
 
+    def test_job_status_reports_durable_queue(self):
+        raw, sig = self.signed()
+        self.service.handle(raw, sig, now=1000)
+        raw2, sig2 = self.signed(nonce="c"*32, action="job_status")
+        result = self.service.handle(raw2, sig2, now=1000)
+        self.assertEqual(result["state"], "queued")
+
     def test_stopped_control_blocks_submission(self):
         with sqlite3.connect(self.stop) as db:
             db.execute("UPDATE agent_control SET stopped=1 WHERE id=1")
