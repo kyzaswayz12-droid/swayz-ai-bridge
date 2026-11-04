@@ -10,7 +10,7 @@ import re
 import sqlite3
 import time
 
-_ACTIONS = {"status", "stop", "job_status"}
+_ACTIONS = {"status", "stop", "job_status", "develop"}
 _JOB = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 _NONCE = re.compile(r"^[a-f0-9]{32,64}$")
 
@@ -38,11 +38,16 @@ class ControlAuthenticator:
             data = json.loads(raw)
         except (UnicodeError, ValueError) as exc:
             raise ValueError("Invalid request JSON") from exc
-        if not isinstance(data, dict) or set(data) != {"action", "job_id", "nonce", "timestamp"}:
+        if not isinstance(data, dict) or set(data) != ({"action", "job_id", "nonce", "timestamp", "task"} if data.get("action") == "develop" else {"action", "job_id", "nonce", "timestamp"}):
             raise ValueError("Invalid control schema")
         if data["action"] not in _ACTIONS:
             raise PermissionError("Unsupported control action")
-        if data["action"] == "job_status":
+        if data["action"] == "develop":
+            if not isinstance(data["job_id"], str) or not _JOB.fullmatch(data["job_id"]):
+                raise ValueError("Invalid job ID")
+            if not isinstance(data["task"], str) or not 1 <= len(data["task"].strip()) <= 400:
+                raise ValueError("Invalid development task")
+        elif data["action"] == "job_status":
             if not isinstance(data["job_id"], str) or not _JOB.fullmatch(data["job_id"]):
                 raise ValueError("Invalid job ID")
         elif data["job_id"] is not None:

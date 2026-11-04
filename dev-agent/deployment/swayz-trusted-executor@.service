@@ -1,0 +1,30 @@
+# Operator-triggered one-shot Docker executor. NOT enabled automatically.
+# Requires an independently installed, root-owned /opt/swayz/executor-app
+# and /etc/swayz/trusted-executor.json; never use a mutable Git worktree.
+# Start only with a protected, root-owned request: systemctl start
+# 'swayz-trusted-executor@<validated-job-id>.service'
+[Unit]
+Description=Swayz supervised trusted executor job %i
+Requires=docker.service
+After=docker.service
+ConditionPathExists=/etc/swayz/trusted-executor.json
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/swayz/executor-app
+Environment=PYTHONPATH=/opt/swayz/executor-app
+ExecStart=/opt/swayz/control-venv/bin/python -m agent.trusted_executor_entrypoint --supervised-once --request /var/lib/swayz-executor/requests/%i.json
+TimeoutStartSec=360
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/swayzcontrol/state /var/lib/swayz-executor
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
+UMask=0077
+StandardOutput=journal
+StandardError=journal
+# No Install section: intentionally no boot-time activation or unattended queue.

@@ -14,8 +14,13 @@ def main():
     config = load_control_runtime_config(os.environ)
     verify_control_tls_identity(config.tls_cert, config.tls_key, expected_ip=config.bind_host)
     import uvicorn
+    task_db = os.environ.get("SWAYZ_DEVELOPMENT_TASK_DB")
+    job_db = os.environ.get("SWAYZ_DEVELOPMENT_JOB_DB")
+    if bool(task_db) != bool(job_db):
+        raise PermissionError("Both development ledgers must be configured together")
     service = WorkerControlService(
-        config.replay_db, config.stop_db, config.journal_db, config.auth_key)
+        config.replay_db, config.stop_db, config.journal_db, config.auth_key,
+        task_db=task_db, job_db=job_db)
     app = create_control_app(service)
     try:
         uvicorn.run(app, host=config.bind_host, port=config.port,

@@ -6,6 +6,7 @@ No control service is enabled by importing this module.
 """
 from .control import handle_control_event
 from .core import Ignore, Reply
+import hashlib
 
 
 def dispatch_bridge_control(payload, settings, store, now, *, remote_client=None, validated_action=None):
@@ -17,10 +18,18 @@ def dispatch_bridge_control(payload, settings, store, now, *, remote_client=None
     parts = payload["event"]["text"].strip().split()
     operation = parts[1].lower()
     job_id = parts[2] if operation == "job" else None
+    task = None
+    if operation == "develop":
+        task = payload["event"]["text"].strip().split(None, 2)[2].strip()
+        event = payload["event"]
+        job_id = "slack-" + hashlib.sha256((event["channel"] + ":" + event["ts"]).encode()).hexdigest()[:24]
     if operation == "job":
         operation = "job_status"
     try:
-        result = remote_client.request(operation, job_id=job_id)
+        if operation == "develop":
+            result = remote_client.request("develop", job_id=job_id, task=task)
+        else:
+            result = remote_client.request(operation, job_id=job_id)
         if operation == "stop":
             if result.get("action") != "stop" or result.get("stopped") is not True:
                 raise ValueError("Stop unconfirmed")
@@ -29,10 +38,14 @@ def dispatch_bridge_control(payload, settings, store, now, *, remote_client=None
             if result.get("action") != "status" or type(result.get("stopped")) is not bool:
                 raise ValueError("Status unconfirmed")
             message = "Swayz control stop: ENGAGED (worker state unverified)" if result["stopped"] else "Swayz control stop: NOT ENGAGED (worker state unverified)"
+        elif operation == "develop":
+            if result.get("action") != "develop" or result.get("job_id") != job_id or result.get("state") != "queued":
+                raise ValueError("Development admission unconfirmed")
+            message = "Development task queued: " + job_id + " (execution disabled until authorised)."
         else:
             if result.get("action") != "job_status" or result.get("job_id") != job_id:
                 raise ValueError("Job status unconfirmed")
-            if result.get("state") not in ("not_found", "admitted", "running", "passed", "failed", "blocked"):
+            if result.get("state") not in ("not_found", "queued", "claimed", "done", "admitted", "running", "passed", "failed", "blocked"):
                 raise ValueError("Invalid job state")
             message = "Job " + job_id + ": " + result["state"]
     except Exception:

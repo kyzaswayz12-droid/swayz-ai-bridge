@@ -22,6 +22,11 @@ def run_provider_call(*, activation: Activation, provider: str, request_id: str,
                       budget: BudgetStore, limits: BudgetLimits,
                       estimate_usd: Decimal, now: datetime,
                       transport=provider_transport, emergency_stop=None):
+    # Legacy USD BudgetStore is not the owner-approved combined GBP ledger.
+    # Keep this older live dispatch path disabled until every provider call
+    # is routed through the canonical job-scoped GBP reservation gateway.
+    if transport is provider_transport:
+        raise PermissionError("Legacy USD provider dispatch disabled; use canonical GBP gateway")
     if emergency_stop is None:
         raise PermissionError("Persistent emergency-stop control required")
     emergency_stop.require_running()

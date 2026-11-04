@@ -25,17 +25,24 @@ class RemoteControlClient:
         self.key = key
         self.ca_file = str(path)
 
-    def request(self, action, *, job_id=None):
-        if action not in ("status", "stop", "job_status"):
+    def request(self, action, *, job_id=None, task=None):
+        if action not in ("status", "stop", "job_status", "develop"):
             raise PermissionError("Unsupported control action")
-        if action == "job_status":
+        if action in ("job_status", "develop"):
             if not isinstance(job_id, str) or not _JOB.fullmatch(job_id):
                 raise ValueError("Invalid job ID")
         elif job_id is not None:
             raise ValueError("Unexpected job ID")
-        body = json.dumps({"action": action, "job_id": job_id,
-                           "nonce": secrets.token_hex(16),
-                           "timestamp": int(time.time())},
+        if action == "develop":
+            if not isinstance(task, str) or not 1 <= len(task.strip()) <= 400:
+                raise ValueError("Invalid development task")
+        elif task is not None:
+            raise ValueError("Unexpected task")
+        payload = {"action": action, "job_id": job_id,
+                   "nonce": secrets.token_hex(16), "timestamp": int(time.time())}
+        if action == "develop":
+            payload["task"] = task.strip()
+        body = json.dumps(payload,
                           sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
         signature = hmac.new(self.key, b"SWAYZ-CONTROL-V1\0" + body,
                              hashlib.sha256).hexdigest()
@@ -51,6 +58,8 @@ class RemoteControlClient:
         if action in ("status", "stop") and type(data.get("stopped")) is not bool:
             raise ValueError("Invalid worker stop state")
         if action == "job_status" and (data.get("job_id") != job_id or
-                                       data.get("state") not in ("not_found", "admitted", "running", "passed", "failed", "blocked")):
+                                       data.get("state") not in ("not_found", "queued", "claimed", "done", "admitted", "running", "passed", "failed", "blocked")):
             raise ValueError("Invalid worker job state")
+        if action == "develop" and (data.get("job_id") != job_id or data.get("state") != "queued"):
+            raise ValueError("Development admission not confirmed")
         return data
