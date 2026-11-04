@@ -76,8 +76,8 @@ def main():
         generated_plan = ApprovedPlan(
             "a" * 40, "b" * 64, "agent/generated-smoke",
             (Change("tests/test_generated.py",
-                "import unittest\\nclass Generated(unittest.TestCase):\\n"
-                "    def test_generated(self): self.assertEqual(6 * 7, 42)\\n"),))
+                "import unittest\nclass Generated(unittest.TestCase):\n"
+                "    def test_generated(self): self.assertEqual(6 * 7, 42)\n"),))
         def execute_generated(*, job_id, snapshot, snapshot_root, expected_hashes):
             plan = plan_worker_lifecycle(job_id, digest, workspace=snapshot)
             adapter = build_guarded_transport(plan, server_control_db=str(db_path))
