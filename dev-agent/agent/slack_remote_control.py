@@ -5,6 +5,7 @@ deduplication before invoking this adapter. No job submission or enable path.
 """
 from .slack_verified_controls import Ignore, Reply
 from .slack_control_intents import parse_slack_control
+import hashlib
 
 
 def route_verified_remote_control(payload, settings, store, now, *, client):
@@ -29,14 +30,23 @@ def route_verified_remote_control(payload, settings, store, now, *, client):
         intent = parse_slack_control(text)
     except ValueError:
         return Ignore("invalid_control")
-    if intent.action not in {"status", "stop", "job_status"}:
+    if intent.action not in {"status", "stop", "job_status", "develop"}:
         return Ignore("unsupported_control")
     if not store.claim_message(channel, ts, now):
         return Ignore("duplicate")
     thread = event.get("thread_ts") or ts
     try:
-        result = client.request(intent.action, job_id=intent.job_id if intent.action == "job_status" else None)
-        if intent.action == "stop":
+        if intent.action == "develop":
+            # Stable identity prevents duplicate submissions across Slack retries.
+            job_id = "slack-" + hashlib.sha256((channel + ":" + ts).encode()).hexdigest()[:24]
+            result = client.request("develop", job_id=job_id, task=intent.task)
+        else:
+            result = client.request(intent.action, job_id=intent.job_id if intent.action == "job_status" else None)
+        if intent.action == "develop":
+            if result.get("job_id") != job_id or result.get("state") != "queued":
+                raise ValueError("Task queue admission not confirmed")
+            message = f"Swayz development task queued: {job_id}. Execution not yet enabled."
+        elif intent.action == "stop":
             if result.get("stopped") is not True:
                 raise ValueError("Stop not confirmed")
             message = "Swayz worker emergency stop confirmed."
