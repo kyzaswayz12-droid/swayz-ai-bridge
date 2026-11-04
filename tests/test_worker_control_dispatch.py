@@ -50,6 +50,19 @@ class WorkerControlDispatchTests(unittest.TestCase):
         self.assertIsInstance(self.dispatch(), Ignore)
         self.assertEqual(self.client.request.call_count, 1)
 
+    def test_develop_queues_with_stable_event_id(self):
+        self.payload["event"]["text"] = "swayz develop Fix unit tests"
+        import hashlib
+        job_id = "slack-" + hashlib.sha256(b"C1:123.1").hexdigest()[:24]
+        self.client.request.return_value = {"action": "develop", "job_id": job_id, "state": "queued"}
+        self.assertIn(job_id, self.dispatch().text)
+        self.client.request.assert_called_once_with("develop", job_id=job_id, task="Fix unit tests")
+
+    def test_develop_unconfirmed_fails_closed(self):
+        self.payload["event"]["text"] = "swayz develop Fix unit tests"
+        self.client.request.return_value = {"action": "develop", "job_id": "wrong", "state": "queued"}
+        self.assertIn("NOT confirmed", self.dispatch().text)
+
     def test_disconnected_mode(self):
         self.assertIn("not connected", dispatch_bridge_control(
             self.payload, self.settings, self.store, 1000).text)
