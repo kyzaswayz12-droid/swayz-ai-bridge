@@ -46,7 +46,7 @@ def main(argv=None):
     config = _protected_json(CONFIG)
     request_path = Path(args.request)
     if (request_path.parent != Path("/var/lib/swayz-executor/requests")
-            or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}\\.json", request_path.name)):
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}\.json", request_path.name)):
         raise PermissionError("Request must use the protected job inbox")
     request = _protected_json(args.request)
     if request.get("job_id") != request_path.stem:
