@@ -41,6 +41,10 @@ class ProviderBackedCycleTests(unittest.TestCase):
         self.assertEqual(dispatch.call_count,2)
         self.assertEqual(dispatch.call_args_list[0].kwargs["request_id"],"job1-openai")
         self.assertEqual(dispatch.call_args_list[1].kwargs["request_id"],"job1-anthropic")
+        reviewed = json.loads(dispatch.call_args_list[1].kwargs["task"])
+        import hashlib
+        canonical = json.dumps({k:v for k,v in reviewed.items() if k != "proposal_sha256"}, sort_keys=True, separators=(",",":"), ensure_ascii=True)
+        self.assertEqual(reviewed["proposal_sha256"], hashlib.sha256(canonical.encode()).hexdigest())
         cycle.assert_called_once()
 
     @patch("agent.provider_backed_development_cycle.dispatch_reserved_provider_once")
