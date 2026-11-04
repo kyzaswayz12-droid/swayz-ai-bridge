@@ -14,6 +14,8 @@ from pathlib import Path
 from agent.worker_lifecycle import plan_worker_lifecycle
 from agent.guarded_transport_factory import build_guarded_transport
 from agent.supervised_lifecycle_adapter import run_supervised_lifecycle
+from agent.change_plan import ApprovedPlan, Change
+from agent.generated_code_docker_adapter import run_generated_code_tests
 
 
 def main():
@@ -64,6 +66,31 @@ def main():
             print("SWAYZ_CI_INSPECT_EXIT", inspect.returncode)
             print("SWAYZ_CI_INSPECT_STDERR", repr(inspect.stderr[:500]))
             raise RuntimeError(f"Supervised Docker smoke failed: {result.state}")
+        # Execute a generated test file through the SAME restricted Docker
+        # lifecycle. This proves the proposed bytes, not a static fixture,
+        # are actually exercised before any draft PR could be published.
+        staging = root / "generated-staging"
+        snapshots = root / "generated-snapshots"
+        staging.mkdir(mode=0o755)
+        snapshots.mkdir(mode=0o755)
+        generated_plan = ApprovedPlan(
+            "a" * 40, "b" * 64, "agent/generated-smoke",
+            (Change("tests/test_generated.py",
+                "import unittest\\nclass Generated(unittest.TestCase):\\n"
+                "    def test_generated(self): self.assertEqual(6 * 7, 42)\\n"),))
+        def execute_generated(*, job_id, snapshot, snapshot_root, expected_hashes):
+            plan = plan_worker_lifecycle(job_id, digest, workspace=snapshot)
+            adapter = build_guarded_transport(plan, server_control_db=str(db_path))
+            actual = run_supervised_lifecycle(
+                plan, transport=adapter, daemon_probe=adapter.daemon_healthy)
+            return {"state": actual.state, "cleanup_verified": actual.cleanup_verified}
+        generated = run_generated_code_tests(
+            job_id="generated1", plan=generated_plan,
+            staging_root=str(staging), snapshot_root=str(snapshots),
+            require_running=lambda: None, trusted_execute=execute_generated)
+        if generated != {"state": "passed", "cleanup_verified": True}:
+            raise RuntimeError("Generated code did not pass real Docker acceptance")
+        print("SWAYZ_GENERATED_CODE_REAL_DOCKER_PASSED")
         # Verify the same persistent stop database prevents a second real
         # Docker invocation. The second job is never launched.
         with sqlite3.connect(db_path) as db:
