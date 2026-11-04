@@ -39,7 +39,7 @@ def run_provider_backed_cycle(
     coding = dispatch_reserved_provider_once(
         **common, request_id=ids[0], provider="openai",
         model=openai_model, api_key=openai_key,
-        instruction="Return only a JSON change plan with base_sha, proposal_sha256, branch and changes. No deployment or secrets.",
+        instruction="Return only JSON with base_sha, branch, changes, proposal_sha256. Compute proposal_sha256 as SHA256 of canonical ASCII JSON (sort_keys=true, compact separators) of the other three fields. No deployment or secrets.",
         task="Base SHA: " + base_sha + "\nTask: " + task,
         maximum_usd=openai_maximum_usd).response.text
     require_running()
@@ -49,6 +49,15 @@ def run_provider_backed_cycle(
     if not isinstance(proposal, dict):
         raise PermissionError("Invalid coding proposal")
     digest = proposal.get("proposal_sha256")
+    # Bind the review identity to actual proposal bytes, not a model-chosen
+    # arbitrary identifier that could also appear in a different proposal.
+    if not isinstance(digest, str):
+        raise PermissionError("Proposal digest missing")
+    canonical = json.dumps({k: v for k, v in proposal.items()
+                            if k != "proposal_sha256"},
+                           sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    if hashlib.sha256(canonical.encode("ascii")).hexdigest() != digest:
+        raise PermissionError("Proposal digest does not match proposed changes")
     validate_change_plan(coding, approved_base_sha=base_sha,
                          approved_proposal_sha256=digest)
     review = dispatch_reserved_provider_once(
