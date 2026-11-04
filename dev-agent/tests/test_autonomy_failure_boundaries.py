@@ -57,7 +57,7 @@ class OfflineAutonomyFailureBoundaries(unittest.TestCase):
             if db.execute("SELECT stopped FROM agent_control WHERE id=1").fetchone() != (0,):
                 raise PermissionError("Stopped")
 
-    def run(self, runner):
+    def execute_cycle(self, runner):
         self.assertEqual(select_for_provider_review(queue_db=self.q, job_db=self.j,
                                                     control_db=self.s)["state"], "queued_for_review")
         return complete_supervised_cycle(
@@ -73,7 +73,7 @@ class OfflineAutonomyFailureBoundaries(unittest.TestCase):
             run_verified_tests=runner, github=self.github)
 
     def test_failed_tests_block_draft(self):
-        result = self.run(lambda **kwargs: {"state":"failed","cleanup_verified":True})
+        result = self.execute_cycle(lambda **kwargs: {"state":"failed","cleanup_verified":True})
         self.assertEqual(result.state, "blocked")
         self.assertEqual(self.github.writes, 0)
         self.assertEqual(DevelopmentTaskQueue(self.q).get("job1")["state"], "blocked")
@@ -83,7 +83,7 @@ class OfflineAutonomyFailureBoundaries(unittest.TestCase):
             self.stop()
             return {"state":"passed","cleanup_verified":True}
         with self.assertRaises(PermissionError):
-            self.run(runner)
+            self.execute_cycle(runner)
         self.assertEqual(self.github.writes, 0)
         self.assertEqual(DevelopmentTaskQueue(self.q).get("job1")["state"], "blocked")
 
@@ -91,6 +91,6 @@ class OfflineAutonomyFailureBoundaries(unittest.TestCase):
         def runner(**kwargs):
             raise RuntimeError("Runner failed")
         with self.assertRaises(RuntimeError):
-            self.run(runner)
+            self.execute_cycle(runner)
         self.assertEqual(self.github.writes, 0)
         self.assertEqual(DevelopmentTaskQueue(self.q).get("job1")["state"], "blocked")
