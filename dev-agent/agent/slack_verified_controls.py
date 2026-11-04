@@ -51,6 +51,8 @@ def handle_verified_control_event(payload, settings, store, now, *,
     elif intent.action == "status":
         message = ("Swayz development dispatch: STOPPED" if emergency_stop.is_stopped()
                    else "Swayz development dispatch: ENABLED (worker health not verified)")
+    elif intent.action == "develop":
+        message = "Development task received but NOT submitted: autonomous dispatch is disabled."
     elif intent.action == "job_status":
         record = journal.status(intent.job_id)
         message = (f"Job {intent.job_id}: {record[0]}" if record
