@@ -83,6 +83,10 @@ def main():
             adapter = build_guarded_transport(plan, server_control_db=str(db_path))
             actual = run_supervised_lifecycle(
                 plan, transport=adapter, daemon_probe=adapter.daemon_healthy)
+            if actual.state != "passed":
+                print("SWAYZ_GENERATED_DOCKER_STATE", actual.state)
+                print("SWAYZ_GENERATED_DOCKER_EXIT", actual.exit_code)
+                print("SWAYZ_GENERATED_DOCKER_OUTPUT", actual.output[:1500])
             return {"state": actual.state, "cleanup_verified": actual.cleanup_verified}
         generated = run_generated_code_tests(
             job_id="generated1", plan=generated_plan,
