@@ -138,9 +138,10 @@ def validate_reserved_signed_worker_plan(
 
     if not isinstance(now, datetime) or now.tzinfo is None or now.utcoffset() is None:
         raise PermissionError("Timezone-aware clock required")
-    if provider not in ("openai", "anthropic"):
+    offline_only = provider == "none" and request_id is None
+    if not offline_only and provider not in ("openai", "anthropic"):
         raise PermissionError("Provider not approved")
-    if not isinstance(request_id, str) or not request_id:
+    if not offline_only and (not isinstance(request_id, str) or not request_id):
         raise PermissionError("Request ID required")
 
     def query(path, statement, params):
@@ -163,6 +164,11 @@ def validate_reserved_signed_worker_plan(
         "SELECT COUNT(*) FROM admitted_jobs WHERE day_utc=?", (day,))
     if len(count) != 1 or not 1 <= count[0][0] <= 20:
         raise PermissionError("Daily job quota invalid")
+    if offline_only:
+        # A no-provider Docker test still needs signed provenance, a durable
+        # admitted job and a valid 20-job daily quota. No paid dispatch is
+        # possible through this validator; the budget is not charged.
+        return validate_signed_admitted_worker_plan(**signed_plan_args)
     reservation = query(budget_db,
         "SELECT provider,day_utc,reserved_gbp,status,actual_gbp FROM gbp_reservations WHERE request_id=?",
         (request_id,))
