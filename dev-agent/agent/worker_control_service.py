@@ -37,8 +37,14 @@ class WorkerControlService:
             return {"action": "develop", "job_id": job_id, "state": "queued"}
         if action == "job_status":
             record = self.journal.status(request["job_id"])
+            state = record[0] if record else "not_found"
+            if state == "not_found" and self.task_db:
+                from .development_task_intake import DevelopmentTaskQueue
+                queued = DevelopmentTaskQueue(self.task_db).get(request["job_id"])
+                if queued is not None:
+                    state = queued["state"]
             return {"action": "job_status", "job_id": request["job_id"],
-                    "state": record[0] if record else "not_found"}
+                    "state": state}
         raise PermissionError("Unsupported control operation")
 
     def close(self):
