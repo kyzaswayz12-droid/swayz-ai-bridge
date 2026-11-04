@@ -25,6 +25,14 @@ def submit_verified_task(*, db_path, job_db, control_db, job_id, task, now):
     if not path.is_absolute() or path.is_symlink() or not path.is_file():
         raise PermissionError("Pre-provisioned task queue required")
     day = now.astimezone(timezone.utc).date().isoformat()
+    # Reject a malformed or duplicate queue before consuming a quota slot.
+    # The canonical admission ledger remains the final duplicate authority.
+    with sqlite3.connect(f"file:{path}?mode=ro", uri=True, timeout=10) as queue:
+        columns = {row[1] for row in queue.execute("PRAGMA table_info(development_tasks)")}
+        if not {"job_id", "day_utc", "task", "state"}.issubset(columns):
+            raise PermissionError("Development queue schema incompatible")
+        if queue.execute("SELECT 1 FROM development_tasks WHERE job_id=?", (job_id,)).fetchone():
+            raise PermissionError("Duplicate development task")
     # Use the existing authoritative 20-job quota, never a second quota.
     # A failed queue insert conservatively retains the admission slot.
     from .daily_job_quota import DailyJobQuota
