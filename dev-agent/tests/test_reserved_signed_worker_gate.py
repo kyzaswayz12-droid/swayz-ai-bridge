@@ -31,6 +31,32 @@ class ReservedSignedWorkerGateTests(unittest.TestCase):
         return validate_reserved_signed_worker_plan(**args)
 
     @patch("agent.trusted_docker_executor.validate_signed_admitted_worker_plan")
+    def test_no_provider_job_needs_no_api_reservation(self, gate):
+        self.validate(provider="none", request_id=None)
+        gate.assert_called_once_with(job_id="job1")
+
+    @patch("agent.trusted_docker_executor.validate_signed_admitted_worker_plan")
+    def test_no_provider_job_still_requires_admission(self, gate):
+        with self.assertRaises(PermissionError):
+            self.validate(provider="none", request_id=None, job_id="missing")
+        gate.assert_not_called()
+
+    @patch("agent.trusted_docker_executor.validate_signed_admitted_worker_plan")
+    def test_no_provider_job_still_obeys_daily_limit(self, gate):
+        with sqlite3.connect(self.jobs) as db:
+            db.executemany("INSERT INTO admitted_jobs VALUES (?, '2026-11-03')",
+                           [(f"job{i}",) for i in range(2, 22)])
+        with self.assertRaises(PermissionError):
+            self.validate(provider="none", request_id=None)
+        gate.assert_not_called()
+
+    @patch("agent.trusted_docker_executor.validate_signed_admitted_worker_plan")
+    def test_paid_provider_cannot_omit_reservation(self, gate):
+        with self.assertRaises(PermissionError):
+            self.validate(provider="openai", request_id=None)
+        gate.assert_not_called()
+
+    @patch("agent.trusted_docker_executor.validate_signed_admitted_worker_plan")
     def test_valid_reservation_reaches_signed_gate(self, gate):
         self.validate()
         gate.assert_called_once_with(job_id="job1")
