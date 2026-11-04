@@ -63,3 +63,35 @@ def provision_task_queue(path):
         db.commit()
     finally:
         db.close()
+
+
+class DevelopmentTaskQueue:
+    """Existing durable queue interface; never executes a task itself."""
+    def __init__(self, path):
+        self.path = Path(path)
+        if not self.path.is_absolute() or self.path.is_symlink() or not self.path.is_file():
+            raise PermissionError("Task queue missing")
+
+    def get(self, job_id):
+        with sqlite3.connect(self.path) as db:
+            row = db.execute(
+                "SELECT task,state FROM development_tasks WHERE job_id=?", (job_id,)
+            ).fetchone()
+        return {"task": row[0], "state": row[1]} if row else None
+
+    def claim(self, job_id):
+        with sqlite3.connect(self.path, timeout=10) as db:
+            result = db.execute(
+                "UPDATE development_tasks SET state='claimed' "
+                "WHERE job_id=? AND state='queued'", (job_id,))
+            return result.rowcount == 1
+
+    def finish(self, job_id, state):
+        if state not in ("blocked", "done"):
+            raise ValueError("Invalid terminal task state")
+        with sqlite3.connect(self.path, timeout=10) as db:
+            result = db.execute(
+                "UPDATE development_tasks SET state=? "
+                "WHERE job_id=? AND state='claimed'", (state, job_id))
+            if result.rowcount != 1:
+                raise PermissionError("Task state transition rejected")
