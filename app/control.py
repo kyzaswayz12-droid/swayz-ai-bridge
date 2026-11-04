@@ -36,6 +36,8 @@ def handle_control_event(payload, settings, store, now):
         message = "Swayz stop was NOT executed: trusted worker control is not connected."
     elif len(parts) == 3 and parts[1].lower() == "job" and _JOB.fullmatch(parts[2]):
         message = "Swayz job lookup unavailable: trusted worker control is not connected."
+    elif len(parts) >= 3 and parts[1].lower() == "develop" and 1 <= len(text.strip().split(None, 2)[2]) <= 400:
+        message = "Swayz development submission unavailable: trusted worker control is not connected."
     else:
         return Ignore("invalid_control")
     if not store.claim_message(channel, ts, now):
