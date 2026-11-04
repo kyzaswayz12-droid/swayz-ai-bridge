@@ -13,6 +13,7 @@ from datetime import datetime
 from pathlib import Path
 
 from .local_supervised_worker_service import run_operator_supervised_worker
+from .executor_ledger_compatibility import verify_executor_ledger
 
 CONFIG = Path("/etc/swayz/trusted-executor.json")
 STOP = "/var/lib/swayzcontrol/state/stop.db"
@@ -52,6 +53,8 @@ def main(argv=None):
         raise PermissionError("Request job identity does not match inbox filename")
     if set(config) != {"job_db", "budget_db", "signing_key_file", "approved_image_digests"}:
         raise PermissionError("Invalid executor configuration")
+    verify_executor_ledger(config["job_db"], "job")
+    verify_executor_ledger(config["budget_db"], "budget")
     if set(request) != {"job_id", "request_id", "provider", "raw_hex", "signature",
                         "expected_manifest", "expected_commit_sha", "snapshot",
                         "snapshot_root", "expected_hashes", "image_digest", "now"}:
