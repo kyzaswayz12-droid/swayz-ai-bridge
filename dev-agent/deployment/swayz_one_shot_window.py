@@ -12,6 +12,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Resolve the paired, immutable deployment's agent package in both the
+# interactive process and the independently launched systemd watchdog.
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from agent.emergency_stop import EmergencyStop
 from agent.one_shot_activation import run_one_supervised_handoff
 
