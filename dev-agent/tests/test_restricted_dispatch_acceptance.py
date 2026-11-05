@@ -24,10 +24,12 @@ class RestrictedDispatchAcceptanceTests(unittest.TestCase):
         return {"state":"passed","cleanup_verified":True}
 
     def invoke(self, **changes):
-        self.executor.swayz_test_double=True
+        def trusted(**kwargs):
+            return self.executor(**kwargs)
+        trusted.swayz_test_double=True
         args=dict(job_id="job1",snapshot=self.snapshot,
             snapshot_root=self.snapshot_root,expected_hashes={"test.py":"a"*64},
-            signing_key_path="/protected/key",stop_db=self.stop,execute=self.executor)
+            signing_key_path="/protected/key",stop_db=self.stop,execute=trusted)
         args.update(changes)
         with patch("agent.restricted_dispatch.os.geteuid",return_value=0):
             return dispatch_prepared_offline_job(**args)
