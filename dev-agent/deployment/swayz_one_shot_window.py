@@ -84,8 +84,10 @@ def run(job_id, metadata_path):
     script = Path(__file__).resolve()
     if script.is_symlink() or script.stat().st_uid != 0 or script.stat().st_mode & 0o022:
         raise PermissionError("Deployment script must be root-owned and protected")
+    # Executor adapter can wait up to 360 seconds. The recovery timer must
+    # outlive that bounded attempt plus cleanup and service restoration.
     cmd("systemd-run", "--unit=swayz-activation-recover-" + job_id,
-        "--on-active=120s", sys.executable, str(script), "--recover")
+        "--on-active=480s", sys.executable, str(script), "--recover")
     try:
         cmd("systemctl", "stop", CONTROL)
         stop = EmergencyStop(STOP)
