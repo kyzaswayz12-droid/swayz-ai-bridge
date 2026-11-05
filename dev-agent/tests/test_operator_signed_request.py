@@ -49,11 +49,11 @@ class OperatorSignedRequestTests(unittest.TestCase):
     def prepare(self, **updates):
         args = dict(self.args)
         args.update(updates)
+        original = Path.stat
         with patch("agent.operator_signed_request.os.geteuid",return_value=0), patch(
             "agent.operator_signed_request.verify_snapshot_before_execution"
         ), patch("agent.operator_signed_request.Path.stat") as stat:
             # Tests run as a non-root account; simulate protected ownership
-            original = Path.stat
             def protected(path, *a, **kw):
                 value = original(path, *a, **kw)
                 if path == self.key or path == self.inbox:
