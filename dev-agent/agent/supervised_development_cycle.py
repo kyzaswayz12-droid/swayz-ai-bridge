@@ -63,7 +63,16 @@ def complete_supervised_cycle(*, job_id, task_queue, require_running,
                 or test_result.get("cleanup_verified") is not True):
             task_queue.finish(job_id, "blocked")
             return DevelopmentCycleResult(job_id, "blocked")
-        # A separately tested repair must never silently publish the original\n        # plan. Require independently reviewed, digest-bound replacement.\n        delivery_raw = coding_response\n        delivery_digest = approved_proposal_sha256\n        if "repair_delivery" in test_result:\n            repair = test_result["repair_delivery"]\n            if (not isinstance(repair, dict) or set(repair) !=\n                    {"raw_plan", "review_response", "proposal_sha256"}):\n                raise PermissionError("Invalid reviewed repair delivery")\n            try:
+        # A separately tested repair must never silently publish the original
+        # plan. Require independently reviewed, digest-bound replacement.
+        delivery_raw = coding_response
+        delivery_digest = approved_proposal_sha256
+        if "repair_delivery" in test_result:
+            repair = test_result["repair_delivery"]
+            if (not isinstance(repair, dict) or set(repair) !=
+                    {"raw_plan", "review_response", "proposal_sha256"}):
+                raise PermissionError("Invalid reviewed repair delivery")
+            try:
                 repair_doc = json.loads(repair["raw_plan"])
                 canonical = json.dumps({k: v for k, v in repair_doc.items()
                                         if k != "proposal_sha256"},
@@ -73,7 +82,26 @@ def complete_supervised_cycle(*, job_id, task_queue, require_running,
                 raise PermissionError("Invalid canonical repair proposal") from None
             if calculated != repair["proposal_sha256"]:
                 raise PermissionError("Repair digest does not match proposal content")
-            revised = validate_change_plan(\n                repair["raw_plan"], approved_base_sha=approved_base_sha,\n                approved_proposal_sha256=repair["proposal_sha256"])\n            if revised.proposal_sha256 == plan.proposal_sha256:\n                raise PermissionError("Repair must have distinct proposal identity")\n            try:\n                revised_review = json.loads(repair["review_response"])\n            except (TypeError, ValueError):\n                raise PermissionError("Invalid independent repair review") from None\n            if (not isinstance(revised_review, dict) or\n                    set(revised_review) != {"proposal_sha256", "approved", "findings"} or\n                    revised_review["proposal_sha256"] != revised.proposal_sha256 or\n                    revised_review["approved"] is not True or\n                    not isinstance(revised_review["findings"], list) or\n                    any(not isinstance(x, str) or not x.strip() for x in revised_review["findings"])):\n                raise PermissionError("Repair proposal not independently approved")\n            delivery_raw = repair["raw_plan"]\n            delivery_digest = revised.proposal_sha256\n        require_running()\n        pr = deliver_approved_draft(
+            revised = validate_change_plan(
+                repair["raw_plan"], approved_base_sha=approved_base_sha,
+                approved_proposal_sha256=repair["proposal_sha256"])
+            if revised.proposal_sha256 == plan.proposal_sha256:
+                raise PermissionError("Repair must have distinct proposal identity")
+            try:
+                revised_review = json.loads(repair["review_response"])
+            except (TypeError, ValueError):
+                raise PermissionError("Invalid independent repair review") from None
+            if (not isinstance(revised_review, dict) or
+                    set(revised_review) != {"proposal_sha256", "approved", "findings"} or
+                    revised_review["proposal_sha256"] != revised.proposal_sha256 or
+                    revised_review["approved"] is not True or
+                    not isinstance(revised_review["findings"], list) or
+                    any(not isinstance(x, str) or not x.strip() for x in revised_review["findings"])):
+                raise PermissionError("Repair proposal not independently approved")
+            delivery_raw = repair["raw_plan"]
+            delivery_digest = revised.proposal_sha256
+        require_running()
+        pr = deliver_approved_draft(
             raw_plan=delivery_raw,
             approved_base_sha=approved_base_sha,
             approved_proposal_sha256=delivery_digest,
