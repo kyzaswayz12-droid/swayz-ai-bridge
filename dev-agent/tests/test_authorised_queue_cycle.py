@@ -57,6 +57,20 @@ class AuthorisedQueueCycleTests(unittest.TestCase):
         self.assertEqual(result["state"], "blocked")
         self.assertIsNone(result["draft_pr"])
 
+    def test_done_without_confirmed_draft_rejected(self):
+        def cycle(q, job):
+            q.state = "done"
+            return SimpleNamespace(job_id=job, state="done", draft_pr=None)
+        with self.assertRaises(PermissionError):
+            self.run_cycle({"state": "queued_for_review", "job_id": "job1", "task": "review"}, cycle)
+
+    def test_blocked_with_pr_rejected(self):
+        def cycle(q, job):
+            q.state = "blocked"
+            return SimpleNamespace(job_id=job, state="blocked", draft_pr={"draft": True})
+        with self.assertRaises(PermissionError):
+            self.run_cycle({"state": "queued_for_review", "job_id": "job1", "task": "review"}, cycle)
+
     def test_no_authorised_cycle_rejected(self):
         with self.assertRaises(PermissionError):
             run_next_authorised_cycle(
