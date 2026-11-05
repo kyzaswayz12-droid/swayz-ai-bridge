@@ -33,6 +33,11 @@ def run_next_authorised_cycle(*, queue_db, job_db, control_db, task_queue,
     result = authorised_cycle(job_id=job_id)
     if result.job_id != job_id or result.state not in ("done", "blocked"):
         raise PermissionError("Invalid development cycle result")
+    if result.state == "done" and (not isinstance(result.draft_pr, dict)
+                                   or result.draft_pr.get("draft") is not True):
+        raise PermissionError("Completed cycle lacks confirmed draft PR")
+    if result.state == "blocked" and result.draft_pr is not None:
+        raise PermissionError("Blocked cycle must not report GitHub delivery")
     final = task_queue.get(job_id)
     expected = "done" if result.state == "done" else "blocked"
     if not isinstance(final, dict) or final.get("state") != expected:
