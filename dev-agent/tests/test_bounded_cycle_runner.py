@@ -33,7 +33,8 @@ class BoundedCycleRunnerTests(unittest.TestCase):
     def test_failed_primary_gets_exactly_one_repair(self):
         result=self.invoke({"state":"failed","cleanup_verified":True},
                         {"state":"passed","cleanup_verified":True})
-        self.assertEqual(result["state"],"passed")
+        self.assertEqual(result["state"],"blocked")
+        self.assertEqual(result["reason"],"repair_passed_requires_revised_plan_delivery")
         self.assertEqual(self.events,["primary","prepare","repair"])
 
     def test_failed_repair_blocks_without_retry(self):
