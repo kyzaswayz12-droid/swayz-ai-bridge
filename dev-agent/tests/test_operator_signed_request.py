@@ -52,7 +52,7 @@ class OperatorSignedRequestTests(unittest.TestCase):
         original = Path.stat
         with patch("agent.operator_signed_request.os.geteuid",return_value=0), patch(
             "agent.operator_signed_request.verify_snapshot_before_execution"
-        ), patch("agent.operator_signed_request.Path.stat") as stat:
+        ), patch("agent.operator_signed_request.Path.stat", autospec=True) as stat:
             # Tests run as a non-root account; simulate protected ownership
             def protected(path, *a, **kw):
                 value = original(path, *a, **kw)
