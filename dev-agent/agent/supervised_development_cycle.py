@@ -62,11 +62,10 @@ def complete_supervised_cycle(*, job_id, task_queue, require_running,
                 or test_result.get("cleanup_verified") is not True):
             task_queue.finish(job_id, "blocked")
             return DevelopmentCycleResult(job_id, "blocked")
-        require_running()
-        pr = deliver_approved_draft(
-            raw_plan=coding_response,
+        # A separately tested repair must never silently publish the original\n        # plan. Require independently reviewed, digest-bound replacement.\n        delivery_raw = coding_response\n        delivery_digest = approved_proposal_sha256\n        if "repair_delivery" in test_result:\n            repair = test_result["repair_delivery"]\n            if (not isinstance(repair, dict) or set(repair) !=\n                    {"raw_plan", "review_response", "proposal_sha256"}):\n                raise PermissionError("Invalid reviewed repair delivery")\n            revised = validate_change_plan(\n                repair["raw_plan"], approved_base_sha=approved_base_sha,\n                approved_proposal_sha256=repair["proposal_sha256"])\n            if revised.proposal_sha256 == plan.proposal_sha256:\n                raise PermissionError("Repair must have distinct proposal identity")\n            try:\n                revised_review = json.loads(repair["review_response"])\n            except (TypeError, ValueError):\n                raise PermissionError("Invalid independent repair review") from None\n            if (not isinstance(revised_review, dict) or\n                    set(revised_review) != {"proposal_sha256", "approved", "findings"} or\n                    revised_review["proposal_sha256"] != revised.proposal_sha256 or\n                    revised_review["approved"] is not True or\n                    not isinstance(revised_review["findings"], list) or\n                    any(not isinstance(x, str) or not x.strip() for x in revised_review["findings"])):\n                raise PermissionError("Repair proposal not independently approved")\n            delivery_raw = repair["raw_plan"]\n            delivery_digest = revised.proposal_sha256\n        require_running()\n        pr = deliver_approved_draft(
+            raw_plan=delivery_raw,
             approved_base_sha=approved_base_sha,
-            approved_proposal_sha256=approved_proposal_sha256,
+            approved_proposal_sha256=delivery_digest,
             base_branch=base_branch, github=github,
             require_running=require_running)
         task_queue.finish(job_id, "done")
