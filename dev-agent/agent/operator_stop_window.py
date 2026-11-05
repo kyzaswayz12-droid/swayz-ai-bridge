@@ -31,6 +31,8 @@ def open_supervised_window(*, job_id, confirmation, watchdog_script,
     if confirmation != "AUTHORISE SUPERVISED " + job_id:
         raise PermissionError("Job-specific confirmation required")
     script = Path(watchdog_script)
+    if script != Path("/opt/swayz/executor-app/deployment/swayz_supervised_smoke.py"):
+        raise PermissionError("Only the pinned recovery script is permitted")
     if not script.is_absolute() or script.is_symlink() or not script.is_file() or script.stat().st_uid != 0 or script.stat().st_mode & 0o022:
         raise PermissionError("Protected watchdog script required")
     stop = EmergencyStop(STOP_DB)
