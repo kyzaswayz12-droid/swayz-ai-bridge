@@ -47,6 +47,15 @@ class UnattendedWorkerLoopTests(unittest.TestCase):
         self.assertEqual(result,{"state":"stopped","processed":0})
         self.assertEqual(calls,[])
 
+    def test_idle_limit_terminates_cleanly(self):
+        calls=[]
+        result=run_worker_loop(require_running=lambda:None,
+            run_one_cycle=lambda:(calls.append(1) or {"state":"empty"}),
+            shutdown_requested=lambda:False,sleep=lambda _:None,
+            max_empty_polls=2)
+        self.assertEqual(result,{"state":"idle_limit","processed":0})
+        self.assertEqual(len(calls),2)
+
     def test_invalid_limit_rejected(self):
         with self.assertRaises(ValueError):
             run_worker_loop(require_running=lambda:None,
