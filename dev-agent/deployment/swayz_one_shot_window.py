@@ -20,6 +20,7 @@ from agent.emergency_stop import EmergencyStop
 from agent.one_shot_activation import run_one_supervised_handoff
 from agent.development_task_intake import submit_verified_task, DevelopmentTaskQueue
 from agent.worker_journal import WorkerJournal
+from agent.snapshot_reverification import verify_snapshot_before_execution
 from datetime import datetime, timezone
 
 STOP = "/var/lib/swayzcontrol/state/stop.db"
@@ -88,6 +89,8 @@ def run(job_id, metadata_path):
         raise PermissionError("Unexpected job metadata")
     if metadata["job_id"] != job_id:
         raise PermissionError("Job identity mismatch")
+    # Verify the immutable approved snapshot BEFORE consuming a job slot.
+    verify_snapshot_before_execution(metadata["snapshot"], metadata["expected_hashes"])
     if set(config) != {"job_db","budget_db","signing_key_file","approved_image_digests"}:
         raise PermissionError("Executor configuration incompatible")
     if config["job_db"] != JOBS or config["signing_key_file"] != KEY:
