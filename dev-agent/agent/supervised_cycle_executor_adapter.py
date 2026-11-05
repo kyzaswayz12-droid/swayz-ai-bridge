@@ -19,10 +19,10 @@ def supervised_cycle_executor(*, job_id, plan, prepared, require_running,
         raise PermissionError("Trusted execution boundary required")
     if not isinstance(prepared, dict) or set(prepared) != {
         "job_id", "snapshot", "snapshot_root", "expected_hashes",
-        "signing_key_path", "approved_base_sha"
+        "signing_key_path", "approved_base_sha", "approved_proposal_sha256"
     }:
         raise PermissionError("Operator-prepared execution metadata required")
-    if prepared["job_id"] != job_id or prepared["approved_base_sha"] != plan.base_sha:
+    if prepared["job_id"] != job_id or prepared["approved_base_sha"] != plan.base_sha or prepared["approved_proposal_sha256"] != plan.proposal_sha256:
         raise PermissionError("Prepared job does not match reviewed proposal")
     require_running()
     result = execute(
