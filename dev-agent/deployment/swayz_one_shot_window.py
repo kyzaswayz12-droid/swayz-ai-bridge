@@ -18,6 +18,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agent.emergency_stop import EmergencyStop
 from agent.one_shot_activation import run_one_supervised_handoff
+from agent.development_task_intake import submit_verified_task, DevelopmentTaskQueue
+from agent.worker_journal import WorkerJournal
+from datetime import datetime, timezone
 
 STOP = "/var/lib/swayzcontrol/state/stop.db"
 CONTROL = "swayz-worker-control.service"
@@ -52,6 +55,24 @@ def protected_json(path):
     if st.st_uid != 0 or st.st_mode & 0o077 or not stat.S_ISREG(st.st_mode) or st.st_size > 32768:
         raise PermissionError("Unprotected input")
     return json.loads(p.read_text())
+
+
+def admit_supervised_smoke(job_id):
+    """One fixed, operator-confirmed offline test; no provider or GitHub writes."""
+    now = datetime.now(timezone.utc)
+    submit_verified_task(
+        db_path=QUEUE, job_db=JOBS, control_db=STOP, job_id=job_id,
+        task="Run approved offline python-unittest smoke; no model calls or GitHub writes",
+        now=now)
+    queue = DevelopmentTaskQueue(QUEUE)
+    if not queue.claim(job_id):
+        raise PermissionError("Fresh smoke task claim failed")
+    journal = WorkerJournal(JOURNAL)
+    try:
+        if not journal.record_admission(job_id):
+            raise PermissionError("Worker job already admitted")
+    finally:
+        journal.close()
 
 
 def run(job_id, metadata_path):
@@ -95,6 +116,9 @@ def run(job_id, metadata_path):
             stop.enable(owner_authorised=True)
         finally:
             stop.close()
+        # Admit exactly once, inside the authorised window. The existing
+        # 20-job quota is consumed by submit_verified_task, not twice.
+        admit_supervised_smoke(job_id)
         result = run_one_supervised_handoff(
             job_id=job_id, commit_sha=metadata["commit_sha"],
             manifest_sha256=metadata["manifest_sha256"],
