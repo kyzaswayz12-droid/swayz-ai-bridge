@@ -62,6 +62,8 @@ class SupervisedWindowFailureTests(unittest.TestCase):
             window, "EmergencyStop", side_effect=lambda _: Stop()), patch.object(
             window, "cmd", side_effect=cmd), patch.object(
             window, "run_one_supervised_handoff", side_effect=handoff), patch.object(
+            window, "admit_supervised_smoke"), patch.object(
+            window, "verify_snapshot_before_execution"), patch.object(
             window.Path, "stat", autospec=True) as stat:
             real_stat = Path.stat
             # Only the deployed script ownership check needs a root fixture.
