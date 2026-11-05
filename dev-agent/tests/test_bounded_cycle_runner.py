@@ -7,7 +7,7 @@ class BoundedCycleRunnerTests(unittest.TestCase):
         self.events=[]
         self.plan=SimpleNamespace(base_sha="a"*40,proposal_sha256="b"*64)
 
-    def run(self, primary, repair=None):
+    def invoke(self, primary, repair=None):
         def first(**kwargs):
             self.events.append("primary")
             return primary
@@ -26,24 +26,24 @@ class BoundedCycleRunnerTests(unittest.TestCase):
             require_running=lambda:None)
 
     def test_primary_pass_never_repairs(self):
-        result=self.run({"state":"passed","cleanup_verified":True})
+        result=self.invoke({"state":"passed","cleanup_verified":True})
         self.assertEqual(result["state"],"passed")
         self.assertEqual(self.events,["primary"])
 
     def test_failed_primary_gets_exactly_one_repair(self):
-        result=self.run({"state":"failed","cleanup_verified":True},
+        result=self.invoke({"state":"failed","cleanup_verified":True},
                         {"state":"passed","cleanup_verified":True})
         self.assertEqual(result["state"],"passed")
         self.assertEqual(self.events,["primary","prepare","repair"])
 
     def test_failed_repair_blocks_without_retry(self):
-        result=self.run({"state":"failed","cleanup_verified":True},
+        result=self.invoke({"state":"failed","cleanup_verified":True},
                         {"state":"failed","cleanup_verified":True})
         self.assertEqual(result["state"],"blocked")
         self.assertEqual(self.events,["primary","prepare","repair"])
 
     def test_uncertain_cleanup_never_repairs(self):
-        result=self.run({"state":"failed","cleanup_verified":False})
+        result=self.invoke({"state":"failed","cleanup_verified":False})
         self.assertEqual(result["state"],"blocked")
         self.assertEqual(self.events,["primary"])
 
