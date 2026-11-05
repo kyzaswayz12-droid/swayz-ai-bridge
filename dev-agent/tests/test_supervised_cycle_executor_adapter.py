@@ -7,8 +7,8 @@ class SupervisedCycleExecutorAdapterTests(unittest.TestCase):
         self.calls = []
         self.prepared = {"job_id":"job1","snapshot":"/snap/job1",
             "snapshot_root":"/snap","expected_hashes":{"test.py":"abc"},
-            "signing_key_path":"/protected/key","approved_base_sha":"a"*40}
-        self.plan = SimpleNamespace(base_sha="a"*40)
+            "signing_key_path":"/protected/key","approved_base_sha":"a"*40,"approved_proposal_sha256":"b"*64}
+        self.plan = SimpleNamespace(base_sha="a"*40,proposal_sha256="b"*64)
 
     def execute(self, **kwargs):
         self.calls.append(kwargs)
@@ -31,7 +31,7 @@ class SupervisedCycleExecutorAdapterTests(unittest.TestCase):
 
     def test_mismatched_base_rejected(self):
         with self.assertRaises(PermissionError):
-            self.invoke(plan=SimpleNamespace(base_sha="b"*40))
+            self.invoke(plan=SimpleNamespace(base_sha="b"*40,proposal_sha256="b"*64))
         self.assertEqual(self.calls,[])
 
     def test_missing_preparation_rejected(self):
@@ -48,4 +48,10 @@ class SupervisedCycleExecutorAdapterTests(unittest.TestCase):
             raise PermissionError("Stopped")
         with self.assertRaises(PermissionError):
             self.invoke(require_running=stopped)
+        self.assertEqual(self.calls,[])
+
+    def test_mismatched_proposal_digest_rejected(self):
+        from types import SimpleNamespace
+        with self.assertRaises(PermissionError):
+            self.invoke(plan=SimpleNamespace(base_sha="a"*40,proposal_sha256="c"*64))
         self.assertEqual(self.calls,[])
