@@ -38,5 +38,9 @@ def bounded_test_runner(*, job_id, plan, run_primary, prepare_repair,
         execute_repair=run_repair)
     if outcome["state"] != "passed":
         return {"state":"blocked","cleanup_verified":False}
+    # The parent supervised cycle would otherwise publish the ORIGINAL plan
+    # after a different repair proposal passed. Until the reviewed repair plan
+    # is propagated to draft delivery, block GitHub publication fail-closed.
     require_running()
-    return {"state":"passed","cleanup_verified":True}
+    return {"state":"blocked","cleanup_verified":True,
+            "reason":"repair_passed_requires_revised_plan_delivery"}
