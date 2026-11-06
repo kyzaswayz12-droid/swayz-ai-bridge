@@ -2,7 +2,8 @@
 
 Not a network endpoint or unattended activation. The operator must be
 authenticated outside this module and the job must already be admitted,
-signed and independently verified. Always re-engage the stop in finally.
+its protected snapshot and immutable metadata independently verified.
+Signing occurs inside the supervised window because the signer checks stop. Always re-engage the stop in finally.
 """
 import os
 from .emergency_stop import EmergencyStop
@@ -17,11 +18,13 @@ def run_supervised_window(*, job_id, verify_operator, verify_prepared_job,
     if not all(callable(x) for x in (
             verify_operator, verify_prepared_job, execute_once)):
         raise PermissionError("Trusted operator callbacks required")
-    # Never release stop before the protected request is ready.
+    # Never release stop before admission and immutable snapshot are verified.
+    # The signer itself requires stop to be released, so signing MUST occur
+    # inside execute_once, after independent watchdog restoration is armed.
     if verify_operator(job_id=job_id) is not True:
         raise PermissionError("Independent operator authentication required")
     if verify_prepared_job(job_id=job_id) is not True:
-        raise PermissionError("Signed, admitted and verified job required")
+        raise PermissionError("Admitted job and protected snapshot required")
     control = EmergencyStop(stop_db)
     try:
         if not control.is_stopped():
