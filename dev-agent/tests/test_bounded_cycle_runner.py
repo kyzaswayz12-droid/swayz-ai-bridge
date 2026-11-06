@@ -16,7 +16,10 @@ class BoundedCycleRunnerTests(unittest.TestCase):
             return {"repair_job_id":"repair1",
                     "approved_repair":{"job_id":"repair1",
                                        "proposal_sha256":"c"*64,
-                                       "base_sha":"a"*40}}
+                                       "base_sha":"a"*40},
+                    "repair_delivery":{"raw_plan":"reviewed-plan",
+                        "review_response":"reviewed-response",
+                        "proposal_sha256":"c"*64}}
         def second(**kwargs):
             self.events.append("repair")
             return repair
@@ -33,8 +36,8 @@ class BoundedCycleRunnerTests(unittest.TestCase):
     def test_failed_primary_gets_exactly_one_repair(self):
         result=self.invoke({"state":"failed","cleanup_verified":True},
                         {"state":"passed","cleanup_verified":True})
-        self.assertEqual(result["state"],"blocked")
-        self.assertEqual(result["reason"],"repair_passed_requires_revised_plan_delivery")
+        self.assertEqual(result["state"],"passed")
+        self.assertEqual(result["repair_delivery"]["proposal_sha256"],"c"*64)
         self.assertEqual(self.events,["primary","prepare","repair"])
 
     def test_failed_repair_blocks_without_retry(self):
