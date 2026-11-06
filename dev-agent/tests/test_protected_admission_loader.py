@@ -26,6 +26,7 @@ class ProtectedAdmissionLoaderTests(unittest.TestCase):
         self.path.chmod(0o600)
     def load(self, job_id="job1"):
         original_stat = Path.stat
+        original_fstat = os.fstat
         def root_owned(path, *args, **kwargs):
             st = original_stat(path, *args, **kwargs)
             if str(path) == str(self.root):
@@ -34,8 +35,15 @@ class ProtectedAdmissionLoaderTests(unittest.TestCase):
                 return os.stat_result(values)
             return st
         with patch("agent.protected_admission_loader.os.geteuid", return_value=0), \
-             patch("pathlib.Path.stat", root_owned):
+             patch("pathlib.Path.stat", root_owned), \
+             patch("agent.protected_admission_loader.os.fstat", side_effect=lambda fd: self._root_fstat(original_fstat(fd))):
             return load_protected_job(job_id, metadata_directory=str(self.root))
+    @staticmethod
+    def _root_fstat(st):
+        values = list(st)
+        values[4] = 0
+        return os.stat_result(values)
+
     def test_protected_metadata_loads(self):
         self.assertEqual(self.load()["approved_images"],frozenset(self.doc["approved_images"]))
     def test_path_traversal_rejected(self):
