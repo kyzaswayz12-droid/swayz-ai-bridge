@@ -27,7 +27,7 @@ def bounded_test_runner(*, job_id, plan, run_primary, prepare_repair,
     prepared = prepare_repair(original_job_id=job_id, plan=plan,
                               failed_result=primary)
     if not isinstance(prepared, dict) or set(prepared) != {
-        "repair_job_id", "approved_repair"
+        "repair_job_id", "approved_repair", "repair_delivery"
     }:
         raise PermissionError("Trusted repair preparation required")
     outcome = run_one_authorised_repair(
@@ -38,9 +38,15 @@ def bounded_test_runner(*, job_id, plan, run_primary, prepare_repair,
         execute_repair=run_repair)
     if outcome["state"] != "passed":
         return {"state":"blocked","cleanup_verified":False}
-    # The parent supervised cycle would otherwise publish the ORIGINAL plan
-    # after a different repair proposal passed. Until the reviewed repair plan
-    # is propagated to draft delivery, block GitHub publication fail-closed.
+    # Propagate the independently reviewed replacement to the supervised
+    # coordinator, which validates its digest, review and base SHA before PR.
+    delivery = prepared["repair_delivery"]
+    if (not isinstance(delivery, dict) or set(delivery) !=
+            {"raw_plan", "review_response", "proposal_sha256"} or
+            not all(isinstance(delivery[k], str) and delivery[k]
+                    for k in delivery)):
+        return {"state":"blocked","cleanup_verified":True,
+                "reason":"missing_reviewed_repair_delivery"}
     require_running()
-    return {"state":"blocked","cleanup_verified":True,
-            "reason":"repair_passed_requires_revised_plan_delivery"}
+    return {"state":"passed","cleanup_verified":True,
+            "repair_delivery":delivery}
