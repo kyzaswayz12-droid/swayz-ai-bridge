@@ -25,18 +25,17 @@ class ProtectedAdmissionLoaderTests(unittest.TestCase):
         self.path.write_text(json.dumps(self.doc))
         self.path.chmod(0o600)
     def load(self, job_id="job1"):
-        with patch("agent.protected_admission_loader.os.geteuid",return_value=0), \
-             patch("agent.protected_admission_loader.os.stat", wraps=os.stat) as fake_stat:
-            original_stat = os.stat
-            def root_owned(path, *args, **kwargs):
-                st = original_stat(path, *args, **kwargs)
-                if str(path) == str(self.root):
-                    values = list(st)
-                    values[4] = 0
-                    return os.stat_result(values)
-                return st
-            fake_stat.side_effect = root_owned
-            return load_protected_job(job_id,metadata_directory=str(self.root))
+        original_stat = Path.stat
+        def root_owned(path, *args, **kwargs):
+            st = original_stat(path, *args, **kwargs)
+            if str(path) == str(self.root):
+                values = list(st)
+                values[4] = 0
+                return os.stat_result(values)
+            return st
+        with patch("agent.protected_admission_loader.os.geteuid", return_value=0), \
+             patch("pathlib.Path.stat", root_owned):
+            return load_protected_job(job_id, metadata_directory=str(self.root))
     def test_protected_metadata_loads(self):
         self.assertEqual(self.load()["approved_images"],frozenset(self.doc["approved_images"]))
     def test_path_traversal_rejected(self):
