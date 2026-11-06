@@ -9,6 +9,8 @@ import json
 import os
 import re
 import stat
+import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 from .persistent_stop_guard import PersistentStopGuard
 from .snapshot_reverification import verify_snapshot_before_execution
@@ -55,8 +57,30 @@ def write_protected_admission(*, job_id, commit_sha, proposal_sha256,
         raise PermissionError("Image not independently approved")
     if signing_key_file != "/etc/swayz/executor-signing.key":
         raise PermissionError("Unexpected signing key path")
+    # Prepare immutable metadata WHILE stopped. The signer separately checks
+    # the released stop during the supervised execution window.
     guard = PersistentStopGuard(STOP_DB)
-    guard.require_running()
+    try:
+        guard.require_running()
+    except PermissionError:
+        pass
+    else:
+        raise PermissionError("Admission preparation requires engaged stop")
+    day = datetime.now(timezone.utc).date().isoformat()
+    with sqlite3.connect("file:" + QUEUE_DB + "?mode=ro", uri=True) as db:
+        queued = db.execute("SELECT day_utc,state FROM development_tasks WHERE job_id=?",
+                            (job_id,)).fetchall()
+    with sqlite3.connect("file:" + JOB_DB + "?mode=ro", uri=True) as db:
+        admitted = db.execute("SELECT day_utc FROM admitted_jobs WHERE job_id=?",
+                              (job_id,)).fetchall()
+        count = db.execute("SELECT COUNT(*) FROM admitted_jobs WHERE day_utc=?",
+                           (day,)).fetchone()[0]
+    with sqlite3.connect("file:" + JOURNAL_DB + "?mode=ro", uri=True) as db:
+        journal = db.execute("SELECT state FROM worker_jobs WHERE job_id=?",
+                             (job_id,)).fetchall()
+    if (queued != [(day, "claimed")] or admitted != [(day,)]
+            or journal != [("admitted",)] or not 1 <= count <= 20):
+        raise PermissionError("Fresh claimed admission and unused journal required")
     snapshot = SNAPSHOTS / job_id
     if snapshot.is_symlink() or not snapshot.is_dir():
         raise PermissionError("Missing protected snapshot")
@@ -77,7 +101,12 @@ def write_protected_admission(*, job_id, commit_sha, proposal_sha256,
     payload=json.dumps(record,sort_keys=True,separators=(",",":")).encode()
     if len(payload)>65536:
         raise PermissionError("Oversized admission metadata")
-    guard.require_running()
+    try:
+        guard.require_running()
+    except PermissionError:
+        pass
+    else:
+        raise PermissionError("Stop released during metadata preparation")
     target=METADATA / (job_id+".json")
     fd=os.open(target,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
     try:
