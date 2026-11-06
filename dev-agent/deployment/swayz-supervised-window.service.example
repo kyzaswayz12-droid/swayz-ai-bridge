@@ -1,0 +1,26 @@
+# Operator-reviewed example only; NOT installed or enabled by this commit.
+# A separately authenticated operator must supply a verified one-shot runner.
+# This unit is intentionally fail-closed until /usr/local/sbin/swayz-supervised-once
+# exists and has been independently reviewed. Do not point it at AI code.
+[Unit]
+Description=Swayz supervised one-shot execution window (operator only)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+WorkingDirectory=/opt/swayz/activation-stage/dev-agent
+Environment=PYTHONPATH=/opt/swayz/activation-stage/dev-agent
+ExecStart=/usr/local/sbin/swayz-supervised-once
+ExecStopPost=/opt/swayz/control-venv/bin/python -m agent.restore_emergency_stop
+TimeoutStartSec=420
+RuntimeMaxSec=420
+KillMode=control-group
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/swayzcontrol/state /var/lib/swayz-executor
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_UNIX
