@@ -12,7 +12,6 @@ import stat
 import sqlite3
 from datetime import datetime, timezone
 from pathlib import Path
-from .persistent_stop_guard import PersistentStopGuard
 from .snapshot_reverification import verify_snapshot_before_execution
 
 _JOB = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
@@ -26,6 +25,20 @@ JOB_DB = str(ROOT / "jobs.sqlite3")
 JOURNAL_DB = "/var/lib/swayzcontrol/state/journal.db"
 STOP_DB = "/var/lib/swayzcontrol/state/stop.db"
 REQUESTS = str(ROOT / "requests")
+
+
+def require_engaged_stop():
+    """Accept only an explicit stopped=1 row; reject missing or broken state."""
+    p = Path(STOP_DB)
+    if not p.is_file() or p.is_symlink():
+        raise PermissionError("Authoritative stop database unavailable")
+    try:
+        with sqlite3.connect(p.as_uri() + "?mode=ro", uri=True, timeout=5) as db:
+            rows = db.execute("SELECT stopped FROM agent_control WHERE id=1").fetchall()
+    except sqlite3.Error as exc:
+        raise PermissionError("Stop state unreadable") from exc
+    if rows != [(1,)]:
+        raise PermissionError("Stop must be explicitly engaged")
 
 
 def write_protected_admission(*, job_id, commit_sha, proposal_sha256,
@@ -59,13 +72,7 @@ def write_protected_admission(*, job_id, commit_sha, proposal_sha256,
         raise PermissionError("Unexpected signing key path")
     # Prepare immutable metadata WHILE stopped. The signer separately checks
     # the released stop during the supervised execution window.
-    guard = PersistentStopGuard(STOP_DB)
-    try:
-        guard.require_running()
-    except PermissionError:
-        pass
-    else:
-        raise PermissionError("Admission preparation requires engaged stop")
+    require_engaged_stop()
     day = datetime.now(timezone.utc).date().isoformat()
     with sqlite3.connect("file:" + QUEUE_DB + "?mode=ro", uri=True) as db:
         queued = db.execute("SELECT day_utc,state FROM development_tasks WHERE job_id=?",
@@ -101,12 +108,7 @@ def write_protected_admission(*, job_id, commit_sha, proposal_sha256,
     payload=json.dumps(record,sort_keys=True,separators=(",",":")).encode()
     if len(payload)>65536:
         raise PermissionError("Oversized admission metadata")
-    try:
-        guard.require_running()
-    except PermissionError:
-        pass
-    else:
-        raise PermissionError("Stop released during metadata preparation")
+    require_engaged_stop()
     target=METADATA / (job_id+".json")
     fd=os.open(target,os.O_WRONLY|os.O_CREAT|os.O_EXCL|os.O_NOFOLLOW,0o600)
     try:
