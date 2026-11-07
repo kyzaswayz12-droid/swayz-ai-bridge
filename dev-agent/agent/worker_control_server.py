@@ -18,9 +18,12 @@ def main():
     job_db = os.environ.get("SWAYZ_DEVELOPMENT_JOB_DB")
     if bool(task_db) != bool(job_db):
         raise PermissionError("Both development ledgers must be configured together")
+    held_db = os.environ.get("SWAYZ_HELD_TASK_DB")
+    if held_db and not task_db:
+        raise PermissionError("Held staging requires configured development ledgers")
     service = WorkerControlService(
         config.replay_db, config.stop_db, config.journal_db, config.auth_key,
-        task_db=task_db, job_db=job_db)
+        task_db=task_db, job_db=job_db, held_db=held_db)
     app = create_control_app(service)
     try:
         uvicorn.run(app, host=config.bind_host, port=config.port,
