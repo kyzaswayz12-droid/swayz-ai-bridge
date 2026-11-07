@@ -5,6 +5,7 @@ The API adapter must enforce TLS and call the authenticator before dispatch.
 from .control_authentication import ControlAuthenticator
 from .emergency_stop import EmergencyStop
 from .worker_journal import WorkerJournal
+from pathlib import Path
 
 
 class WorkerControlService:
@@ -54,6 +55,12 @@ class WorkerControlService:
                 queued = DevelopmentTaskQueue(self.task_db).get(request["job_id"])
                 if queued is not None:
                     state = queued["state"]
+            if state == "not_found" and self.held_db:
+                import sqlite3
+                with sqlite3.connect("file:" + str(Path(self.held_db).resolve()) + "?mode=ro", uri=True) as db:
+                    held = db.execute("SELECT state FROM held_tasks WHERE job_id=?", (request["job_id"],)).fetchone()
+                if held is not None:
+                    state = held[0]
             return {"action": "job_status", "job_id": request["job_id"],
                     "state": state}
         raise PermissionError("Unsupported control operation")
