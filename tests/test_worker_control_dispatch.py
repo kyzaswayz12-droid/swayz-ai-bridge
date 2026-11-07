@@ -66,3 +66,24 @@ class WorkerControlDispatchTests(unittest.TestCase):
     def test_disconnected_mode(self):
         self.assertIn("not connected", dispatch_bridge_control(
             self.payload, self.settings, self.store, 1000).text)
+
+    def test_stage_held_with_stable_event_id(self):
+        self.payload["event"]["text"] = "swayz stage Offline smoke test"
+        import hashlib
+        job_id = "slack-" + hashlib.sha256(b"C1:123.1").hexdigest()[:24]
+        self.client.request.return_value = {"action": "stage", "job_id": job_id, "state": "held"}
+        reply = self.dispatch()
+        self.assertIn("held", reply.text)
+        self.assertIn(job_id, reply.text)
+        self.client.request.assert_called_once_with("stage", job_id=job_id, task="Offline smoke test")
+
+    def test_stage_wrong_response_fails_closed(self):
+        self.payload["event"]["text"] = "swayz stage Offline smoke test"
+        self.client.request.return_value = {"action": "stage", "job_id": "wrong", "state": "held"}
+        self.assertIn("NOT confirmed", self.dispatch().text)
+
+    def test_stage_unauthorised_user_rejected(self):
+        self.payload["event"]["text"] = "swayz stage Offline smoke test"
+        self.payload["event"]["user"] = "U2"
+        self.assertIsInstance(self.dispatch(), Ignore)
+        self.client.request.assert_not_called()

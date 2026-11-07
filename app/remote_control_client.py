@@ -26,21 +26,21 @@ class RemoteControlClient:
         self.ca_file = str(path)
 
     def request(self, action, *, job_id=None, task=None):
-        if action not in ("status", "stop", "job_status", "develop"):
+        if action not in ("status", "stop", "job_status", "develop", "stage"):
             raise PermissionError("Unsupported control action")
-        if action in ("job_status", "develop"):
+        if action in ("job_status", "develop", "stage"):
             if not isinstance(job_id, str) or not _JOB.fullmatch(job_id):
                 raise ValueError("Invalid job ID")
         elif job_id is not None:
             raise ValueError("Unexpected job ID")
-        if action == "develop":
+        if action in ("develop", "stage"):
             if not isinstance(task, str) or not 1 <= len(task.strip()) <= 400:
                 raise ValueError("Invalid development task")
         elif task is not None:
             raise ValueError("Unexpected task")
         payload = {"action": action, "job_id": job_id,
                    "nonce": secrets.token_hex(16), "timestamp": int(time.time())}
-        if action == "develop":
+        if action in ("develop", "stage"):
             payload["task"] = task.strip()
         body = json.dumps(payload,
                           sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
@@ -62,4 +62,6 @@ class RemoteControlClient:
             raise ValueError("Invalid worker job state")
         if action == "develop" and (data.get("job_id") != job_id or data.get("state") != "queued"):
             raise ValueError("Development admission not confirmed")
+        if action == "stage" and (data.get("job_id") != job_id or data.get("state") != "held"):
+            raise ValueError("Held staging not confirmed")
         return data

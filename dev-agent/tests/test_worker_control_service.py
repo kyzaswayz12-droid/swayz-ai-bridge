@@ -46,6 +46,17 @@ class WorkerControlServiceTests(unittest.TestCase):
         result = self.service.handle(*self.request("job_status", "job1"), now=1000)
         self.assertEqual(result["state"], "admitted")
 
+    def test_held_job_status(self):
+        import sqlite3
+        db_path = Path(self.tmp.name) / "held.db"
+        with sqlite3.connect(db_path) as db:
+            db.execute("CREATE TABLE held_tasks (job_id TEXT PRIMARY KEY, state TEXT NOT NULL)")
+            db.execute("INSERT INTO held_tasks VALUES (?, ?)", ("held-job1", "held"))
+        self.service.held_db = str(db_path)
+        result = self.service.handle(*self.request("job_status", "held-job1"), now=1000)
+        self.assertEqual(result["state"], "held")
+        self.assertTrue(self.service.stop.is_stopped())
+
     def test_no_enable_command(self):
         with self.assertRaises(PermissionError):
             self.service.handle(*self.request("enable"), now=1000)
