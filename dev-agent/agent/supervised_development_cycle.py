@@ -5,6 +5,7 @@ responses and a trusted Docker job runner. This coordinator never creates
 credentials, makes paid API calls, bypasses the stop or merges a PR.
 """
 import json
+import hashlib
 from dataclasses import dataclass
 from .change_plan import validate_change_plan
 from .draft_pr_delivery import deliver_approved_draft
@@ -62,11 +63,48 @@ def complete_supervised_cycle(*, job_id, task_queue, require_running,
                 or test_result.get("cleanup_verified") is not True):
             task_queue.finish(job_id, "blocked")
             return DevelopmentCycleResult(job_id, "blocked")
+        # A separately tested repair must never silently publish the original
+        # plan. Require independently reviewed, digest-bound replacement.
+        delivery_raw = coding_response
+        delivery_digest = approved_proposal_sha256
+        if "repair_delivery" in test_result:
+            repair = test_result["repair_delivery"]
+            if (not isinstance(repair, dict) or set(repair) !=
+                    {"raw_plan", "review_response", "proposal_sha256"}):
+                raise PermissionError("Invalid reviewed repair delivery")
+            try:
+                repair_doc = json.loads(repair["raw_plan"])
+                canonical = json.dumps({k: v for k, v in repair_doc.items()
+                                        if k != "proposal_sha256"},
+                                       sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+                calculated = hashlib.sha256(canonical.encode("ascii")).hexdigest()
+            except (ValueError, TypeError, UnicodeError, AttributeError):
+                raise PermissionError("Invalid canonical repair proposal") from None
+            if calculated != repair["proposal_sha256"]:
+                raise PermissionError("Repair digest does not match proposal content")
+            revised = validate_change_plan(
+                repair["raw_plan"], approved_base_sha=approved_base_sha,
+                approved_proposal_sha256=repair["proposal_sha256"])
+            if revised.proposal_sha256 == plan.proposal_sha256:
+                raise PermissionError("Repair must have distinct proposal identity")
+            try:
+                revised_review = json.loads(repair["review_response"])
+            except (TypeError, ValueError):
+                raise PermissionError("Invalid independent repair review") from None
+            if (not isinstance(revised_review, dict) or
+                    set(revised_review) != {"proposal_sha256", "approved", "findings"} or
+                    revised_review["proposal_sha256"] != revised.proposal_sha256 or
+                    revised_review["approved"] is not True or
+                    not isinstance(revised_review["findings"], list) or
+                    any(not isinstance(x, str) or not x.strip() for x in revised_review["findings"])):
+                raise PermissionError("Repair proposal not independently approved")
+            delivery_raw = repair["raw_plan"]
+            delivery_digest = revised.proposal_sha256
         require_running()
         pr = deliver_approved_draft(
-            raw_plan=coding_response,
+            raw_plan=delivery_raw,
             approved_base_sha=approved_base_sha,
-            approved_proposal_sha256=approved_proposal_sha256,
+            approved_proposal_sha256=delivery_digest,
             base_branch=base_branch, github=github,
             require_running=require_running)
         task_queue.finish(job_id, "done")

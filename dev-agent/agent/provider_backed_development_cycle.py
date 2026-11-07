@@ -19,10 +19,20 @@ def run_provider_backed_cycle(
     openai_model, anthropic_model, openai_key, anthropic_key,
     openai_maximum_usd: Decimal, anthropic_maximum_usd: Decimal,
     run_verified_tests, github, owner_approved=False,
-    paid_calls_enabled=False, transport=None,
+    paid_calls_enabled=False, transport=None, operator_prepared_executor=None,
 ):
     if owner_approved is not True or paid_calls_enabled is not True:
         raise PermissionError("Paid development not authorised")
+    if operator_prepared_executor is not None:
+        if run_verified_tests is not None:
+            raise PermissionError("Conflicting executor paths")
+        from .supervised_cycle_executor_adapter import supervised_cycle_executor
+        def run_verified_tests(*, job_id, plan):
+            return supervised_cycle_executor(
+                job_id=job_id, plan=plan, prepared=operator_prepared_executor,
+                require_running=require_running)
+    if not callable(run_verified_tests):
+        raise PermissionError("Verified executor required")
     require_running()
     row = task_queue.get(job_id)
     if not isinstance(row, dict) or row.get("state") != "queued":

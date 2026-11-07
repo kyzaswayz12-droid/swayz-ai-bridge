@@ -8,12 +8,13 @@ from .worker_journal import WorkerJournal
 
 
 class WorkerControlService:
-    def __init__(self, replay_path, stop_path, journal_path, key, *, task_db=None, job_db=None):
+    def __init__(self, replay_path, stop_path, journal_path, key, *, task_db=None, job_db=None, held_db=None):
         self.auth = ControlAuthenticator(replay_path, key)
         self.stop = EmergencyStop(stop_path)
         self.journal = WorkerJournal(journal_path)
         self.task_db = task_db
         self.job_db = job_db
+        self.held_db = held_db
         self.stop_path = stop_path
 
     def handle(self, raw, signature, *, now=None):
@@ -25,6 +26,16 @@ class WorkerControlService:
         if action == "status":
             return {"action": "status", "stopped": self.stop.is_stopped(),
                     "worker_health": "not_verified"}
+        if action == "stage":
+            if not self.held_db or not self.task_db:
+                raise PermissionError("Held task staging not configured")
+            from datetime import datetime, timezone
+            from .held_task_staging import stage_held_task
+            result = stage_held_task(
+                held_db=self.held_db, executable_db=self.task_db,
+                job_id=request["job_id"], task=request["task"],
+                now=datetime.now(timezone.utc))
+            return {"action": "stage", **result}
         if action == "develop":
             if not self.task_db or not self.job_db:
                 raise PermissionError("Development intake not configured")
