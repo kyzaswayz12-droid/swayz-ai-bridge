@@ -40,7 +40,7 @@ class RemoteControlClient:
             raise ValueError("Unexpected task")
         payload = {"action": action, "job_id": job_id,
                    "nonce": secrets.token_hex(16), "timestamp": int(time.time())}
-        if action == "develop":
+        if action in ("develop", "stage"):
             payload["task"] = task.strip()
         body = json.dumps(payload,
                           sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
