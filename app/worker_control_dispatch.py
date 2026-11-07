@@ -19,15 +19,15 @@ def dispatch_bridge_control(payload, settings, store, now, *, remote_client=None
     operation = parts[1].lower()
     job_id = parts[2] if operation == "job" else None
     task = None
-    if operation == "develop":
+    if operation in ("develop", "stage"):
         task = payload["event"]["text"].strip().split(None, 2)[2].strip()
         event = payload["event"]
         job_id = "slack-" + hashlib.sha256((event["channel"] + ":" + event["ts"]).encode()).hexdigest()[:24]
     if operation == "job":
         operation = "job_status"
     try:
-        if operation == "develop":
-            result = remote_client.request("develop", job_id=job_id, task=task)
+        if operation in ("develop", "stage"):
+            result = remote_client.request(operation, job_id=job_id, task=task)
         else:
             result = remote_client.request(operation, job_id=job_id)
         if operation == "stop":
@@ -38,6 +38,10 @@ def dispatch_bridge_control(payload, settings, store, now, *, remote_client=None
             if result.get("action") != "status" or type(result.get("stopped")) is not bool:
                 raise ValueError("Status unconfirmed")
             message = "Swayz control stop: ENGAGED (worker state unverified)" if result["stopped"] else "Swayz control stop: NOT ENGAGED (worker state unverified)"
+        elif operation == "stage":
+            if result.get("action") != "stage" or result.get("job_id") != job_id or result.get("state") != "held":
+                raise ValueError("Held staging unconfirmed")
+            message = "Development task held: " + job_id + " (not executable; emergency stop unchanged)."
         elif operation == "develop":
             if result.get("action") != "develop" or result.get("job_id") != job_id or result.get("state") != "queued":
                 raise ValueError("Development admission unconfirmed")
