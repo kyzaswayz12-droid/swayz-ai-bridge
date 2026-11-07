@@ -125,7 +125,7 @@ async def process_worker_control(payload, settings, store, now, validated_action
         action = await asyncio.to_thread(dispatch_bridge_control, payload, settings, store, now,
                                          remote_client=client, validated_action=validated_action)
     except Exception as exc:
-        logger.error("worker control background failure error=%s", describe_error(exc))
+        logger.exception("worker control background failure error=%s", describe_error(exc))
         action = Reply(validated_action.channel, validated_action.thread_ts,
                        "Swayz control unavailable; action NOT confirmed.")
     if isinstance(action, Reply):
