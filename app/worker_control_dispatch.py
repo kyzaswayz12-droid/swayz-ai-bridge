@@ -7,6 +7,9 @@ No control service is enabled by importing this module.
 from .control import handle_control_event
 from .core import Ignore, Reply
 import hashlib
+import logging
+
+logger = logging.getLogger("swayz.bridge.control")
 
 
 def dispatch_bridge_control(payload, settings, store, now, *, remote_client=None, validated_action=None):
@@ -52,6 +55,9 @@ def dispatch_bridge_control(payload, settings, store, now, *, remote_client=None
             if result.get("state") not in ("not_found", "queued", "claimed", "done", "admitted", "running", "passed", "failed", "blocked"):
                 raise ValueError("Invalid job state")
             message = "Job " + job_id + ": " + result["state"]
-    except Exception:
+    except Exception as exc:
+        status = getattr(getattr(exc, "response", None), "status_code", None)
+        logger.error("remote control failed operation=%s error=%s status=%s",
+                     operation, type(exc).__name__, status)
         message = "Swayz control unavailable; action NOT confirmed."
     return Reply(action.channel, action.thread_ts, message)
