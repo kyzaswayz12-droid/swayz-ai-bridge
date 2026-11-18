@@ -94,6 +94,27 @@ class SupervisedWindowFailureTests(unittest.TestCase):
                 window.run("job1", "/protected/job1.json", resume_admitted=True)
         self.assertTrue(Stop.stopped)
 
+    def test_prepared_dispatch_never_resigns_or_readmits(self):
+        with patch.object(window.os, "geteuid", return_value=0), patch.object(
+            window.sys.stdin, "isatty", return_value=True), patch(
+            "builtins.input", return_value="AUTHORISE job1"), patch.object(
+            window, "protected_json", side_effect=lambda p, **kw: self.config if p == window.CONFIG else self.metadata), patch.object(
+            window, "EmergencyStop", side_effect=lambda _: Stop()), patch.object(
+            window, "cmd"), patch.object(
+            window, "verify_snapshot_before_execution"), patch.object(
+            window, "validate_prepared_request"), patch.object(
+            window, "require_existing_admission"), patch.object(
+            window, "run_one_supervised_handoff") as signing, patch.object(
+            window, "admit_held_task") as admission, patch.object(
+            window, "dispatch_prepared_offline_job", return_value={"state":"passed", "cleanup_verified":True}) as dispatch, patch.object(
+            window.Path, "stat", autospec=True) as stat:
+            stat.side_effect = lambda self, *a, **k: type("S", (), {"st_uid":0,"st_mode":0o100600})()
+            self.assertEqual(window.run("job1", "/protected/job1.json", dispatch_prepared=True)["state"], "passed")
+            signing.assert_not_called()
+            admission.assert_not_called()
+            dispatch.assert_called_once()
+        self.assertTrue(Stop.stopped)
+
     def test_success_restores_stop(self):
         self.assertEqual(self.run_window()["state"], "passed")
         self.assertTrue(Stop.stopped)
