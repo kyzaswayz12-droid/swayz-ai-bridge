@@ -19,6 +19,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from agent.emergency_stop import EmergencyStop
 from agent.one_shot_activation import run_one_supervised_handoff
 from agent.development_task_intake import submit_verified_task, DevelopmentTaskQueue
+from agent.operator_held_promotion import promote_held_task
 from agent.worker_journal import WorkerJournal
 from agent.snapshot_reverification import verify_snapshot_before_execution
 from datetime import datetime, timezone
@@ -76,7 +77,25 @@ def admit_supervised_smoke(job_id):
         journal.close()
 
 
-def run(job_id, metadata_path):
+def admit_held_task(job_id):
+    """Promote exactly the approved Slack task, then claim and journal it."""
+    promote_held_task(
+        held_db="/var/lib/swayzcontrol/held/tasks.db",
+        executable_db=QUEUE, job_db=JOBS, stop_db=STOP,
+        job_id=job_id, operator_approved=True,
+    )
+    queue = DevelopmentTaskQueue(QUEUE)
+    if not queue.claim(job_id):
+        raise PermissionError("Promoted held task claim failed")
+    journal = WorkerJournal(JOURNAL)
+    try:
+        if not journal.record_admission(job_id):
+            raise PermissionError("Worker job already admitted")
+    finally:
+        journal.close()
+
+
+def run(job_id, metadata_path, held_job=False):
     if os.geteuid() != 0 or not sys.stdin.isatty():
         raise PermissionError("Interactive root operator required")
     import re
@@ -121,7 +140,10 @@ def run(job_id, metadata_path):
             stop.close()
         # Admit exactly once, inside the authorised window. The existing
         # 20-job quota is consumed by submit_verified_task, not twice.
-        admit_supervised_smoke(job_id)
+        if held_job:
+            admit_held_task(job_id)
+        else:
+            admit_supervised_smoke(job_id)
         result = run_one_supervised_handoff(
             job_id=job_id, commit_sha=metadata["commit_sha"],
             manifest_sha256=metadata["manifest_sha256"],
@@ -143,17 +165,19 @@ def main():
     parser.add_argument("--recover", action="store_true")
     parser.add_argument("--job")
     parser.add_argument("--metadata")
+    parser.add_argument("--held-job", action="store_true",
+                        help="Promote the existing held Slack job instead of staging a smoke task")
     args = parser.parse_args()
     if os.geteuid() != 0:
         raise PermissionError("Root operator required")
     if args.recover:
-        if args.job or args.metadata:
+        if args.job or args.metadata or args.held_job:
             parser.error("Recovery accepts no job arguments")
         restore()
     else:
         if not args.job or not args.metadata:
             parser.error("Job and protected metadata required")
-        print(json.dumps(run(args.job, args.metadata)))
+        print(json.dumps(run(args.job, args.metadata, held_job=args.held_job)))
 
 
 if __name__ == "__main__":
