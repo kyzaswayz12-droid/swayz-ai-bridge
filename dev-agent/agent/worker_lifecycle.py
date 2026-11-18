@@ -43,7 +43,7 @@ def plan_worker_lifecycle(job_id: str, image_digest: str, *,
         for entry in root.rglob("*"):
             if entry.is_symlink():
                 raise PermissionError("Workspace contains symlink")
-        mount = ("--mount", f"type=bind,src={root},dst=/work,readonly", "--workdir", "/work/dev-agent")
+        mount = ("--mount", f"type=bind,src={root},dst=/work,readonly", "--workdir", "/work")
     name = "swayz-test-" + job_id
     image = "python@"+image_digest
     return WorkerLifecycle(
@@ -55,7 +55,7 @@ def plan_worker_lifecycle(job_id: str, image_digest: str, *,
             "--pids-limit", "64", "--memory", "512m", "--cpus", "1",
             "--user", "65534:65534",
             "--tmpfs", "/tmp:rw,nosuid,nodev,noexec,size=64m",
-            *mount, image, "python", "-m", "unittest", "discover", "-s", "tests", "-v"
+            *mount, image, "python", "-m", "unittest", "discover", "-s", "dev-agent/tests", "-t", "dev-agent", "-v"
         ),
         kill_argv=("docker", "kill", name),
         inspect_argv=("docker", "inspect", name),
