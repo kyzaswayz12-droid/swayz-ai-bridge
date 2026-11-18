@@ -19,6 +19,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from agent.emergency_stop import EmergencyStop
 from agent.one_shot_activation import run_one_supervised_handoff
+from agent.restricted_dispatch import dispatch_prepared_offline_job
+from agent.signed_handoff import verify_manifest_job
 from agent.development_task_intake import submit_verified_task, DevelopmentTaskQueue
 from agent.operator_held_promotion import promote_held_task
 from agent.worker_journal import WorkerJournal
@@ -96,7 +98,7 @@ def admit_held_task(job_id):
         journal.close()
 
 
-def require_existing_admission(job_id):
+def require_existing_admission(job_id, *, prepared=False):
     """Resume only an already claimed, once-admitted job; never insert or claim."""
     from agent.persistent_stop_guard import PersistentStopGuard
     PersistentStopGuard(STOP).require_running()
@@ -114,18 +116,49 @@ def require_existing_admission(job_id):
             rows = db.execute(query, (job_id,)).fetchall()
         if rows != [expected]:
             raise PermissionError("Job not eligible for one-time admitted recovery")
-    if (Path(INBOX) / (job_id + ".json")).exists():
+    if not prepared and (Path(INBOX) / (job_id + ".json")).exists():
         raise PermissionError("Existing signed request requires reconciliation")
 
 
-def run(job_id, metadata_path, held_job=False, resume_admitted=False):
+def validate_prepared_request(job_id, metadata, signing_key):
+    """Read-only, fail-closed reconciliation before releasing the stop."""
+    p = Path(INBOX) / (job_id + ".json")
+    request = protected_json(p, max_bytes=131072)
+    if set(request) != {"job_id", "request_id", "provider", "raw_hex", "signature",
+                        "expected_manifest", "expected_commit_sha", "snapshot",
+                        "snapshot_root", "expected_hashes", "image_digest", "now"}:
+        raise PermissionError("Unexpected signed request fields")
+    if (request["job_id"] != job_id or request["request_id"] is not None
+            or request["provider"] != "none"
+            or any(request[k] != metadata[k] for k in (
+                "commit_sha", "manifest_sha256", "snapshot", "snapshot_root",
+                "expected_hashes", "image_digest") if k in request)):
+        raise PermissionError("Signed request does not match approved metadata")
+    if (request["expected_commit_sha"] != metadata["commit_sha"]
+            or request["expected_manifest"] != metadata["manifest_sha256"]):
+        raise PermissionError("Signed request identity mismatch")
+    key = Path(signing_key)
+    if not key.is_absolute() or key.is_symlink() or not key.is_file():
+        raise PermissionError("Signing key missing")
+    st = key.stat()
+    if st.st_uid != 0 or st.st_mode & 0o077:
+        raise PermissionError("Signing key unprotected")
+    signed = verify_manifest_job(bytes.fromhex(request["raw_hex"]),
+                                 request["signature"], key.read_bytes(),
+                                 request["expected_manifest"])
+    if signed.job_id != job_id or signed.commit_sha != metadata["commit_sha"]:
+        raise PermissionError("Signed request signature identity mismatch")
+
+
+def run(job_id, metadata_path, held_job=False, resume_admitted=False,
+        dispatch_prepared=False):
     if os.geteuid() != 0 or not sys.stdin.isatty():
         raise PermissionError("Interactive root operator required")
     import re
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_id):
         raise ValueError("Invalid job ID")
-    if held_job and resume_admitted:
-        raise PermissionError("Cannot promote and resume simultaneously")
+    if sum(bool(x) for x in (held_job, resume_admitted, dispatch_prepared)) > 1:
+        raise PermissionError("Conflicting execution modes")
     config = protected_json(CONFIG)
     metadata = protected_json(metadata_path, max_bytes=131072)
     if set(metadata) != {"job_id","commit_sha","manifest_sha256","snapshot",
@@ -141,6 +174,9 @@ def run(job_id, metadata_path, held_job=False, resume_admitted=False):
         raise PermissionError("Executor configuration incompatible")
     if config["job_db"] != JOBS or config["signing_key_file"] != KEY:
         raise PermissionError("Unexpected authoritative executor paths")
+    if dispatch_prepared:
+        # Reconcile once before operator authorisation; do not re-admit or re-sign.
+        validate_prepared_request(job_id, metadata, KEY)
     if input("Type AUTHORISE " + job_id + " to open a supervised window: ") != "AUTHORISE " + job_id:
         raise PermissionError("Operator confirmation required")
     stop = EmergencyStop(STOP)
@@ -167,13 +203,22 @@ def run(job_id, metadata_path, held_job=False, resume_admitted=False):
             stop.close()
         # Admit exactly once, inside the authorised window. The existing
         # 20-job quota is consumed by submit_verified_task, not twice.
-        if resume_admitted:
+        if dispatch_prepared:
+            require_existing_admission(job_id, prepared=True)
+        elif resume_admitted:
             require_existing_admission(job_id)
         elif held_job:
             admit_held_task(job_id)
         else:
             admit_supervised_smoke(job_id)
-        result = run_one_supervised_handoff(
+        if dispatch_prepared:
+            result = dispatch_prepared_offline_job(
+                job_id=job_id, snapshot=metadata["snapshot"],
+                snapshot_root=metadata["snapshot_root"],
+                expected_hashes=metadata["expected_hashes"],
+                signing_key_path=KEY, stop_db=STOP)
+        else:
+            result = run_one_supervised_handoff(
             job_id=job_id, commit_sha=metadata["commit_sha"],
             manifest_sha256=metadata["manifest_sha256"],
             snapshot=metadata["snapshot"], snapshot_root=metadata["snapshot_root"],
@@ -194,6 +239,8 @@ def main():
     parser.add_argument("--recover", action="store_true")
     parser.add_argument("--job")
     parser.add_argument("--metadata")
+    parser.add_argument("--dispatch-prepared", action="store_true",
+                        help="Dispatch existing signed request without re-admission or signing")
     parser.add_argument("--resume-admitted", action="store_true",
                         help="Execute existing claimed admission without re-admitting")
     parser.add_argument("--held-job", action="store_true",
@@ -202,14 +249,15 @@ def main():
     if os.geteuid() != 0:
         raise PermissionError("Root operator required")
     if args.recover:
-        if args.job or args.metadata or args.held_job or args.resume_admitted:
+        if args.job or args.metadata or args.held_job or args.resume_admitted or args.dispatch_prepared:
             parser.error("Recovery accepts no job arguments")
         restore()
     else:
         if not args.job or not args.metadata:
             parser.error("Job and protected metadata required")
         print(json.dumps(run(args.job, args.metadata, held_job=args.held_job,
-                             resume_admitted=args.resume_admitted)))
+                             resume_admitted=args.resume_admitted,
+                             dispatch_prepared=args.dispatch_prepared)))
 
 
 if __name__ == "__main__":
