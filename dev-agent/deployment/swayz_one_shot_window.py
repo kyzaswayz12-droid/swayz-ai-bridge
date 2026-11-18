@@ -49,12 +49,12 @@ def restore():
     cmd("systemctl", "start", CONTROL)
 
 
-def protected_json(path):
+def protected_json(path, *, max_bytes=32768):
     p = Path(path)
     if not p.is_absolute() or p.is_symlink() or not p.is_file():
         raise PermissionError("Protected input missing")
     st = p.stat()
-    if st.st_uid != 0 or st.st_mode & 0o077 or not stat.S_ISREG(st.st_mode) or st.st_size > 32768:
+    if st.st_uid != 0 or st.st_mode & 0o077 or not stat.S_ISREG(st.st_mode) or st.st_size > max_bytes:
         raise PermissionError("Unprotected input")
     return json.loads(p.read_text())
 
@@ -102,7 +102,7 @@ def run(job_id, metadata_path, held_job=False):
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_id):
         raise ValueError("Invalid job ID")
     config = protected_json(CONFIG)
-    metadata = protected_json(metadata_path)
+    metadata = protected_json(metadata_path, max_bytes=131072)
     if set(metadata) != {"job_id","commit_sha","manifest_sha256","snapshot",
                          "snapshot_root","expected_hashes","image_digest"}:
         raise PermissionError("Unexpected job metadata")
