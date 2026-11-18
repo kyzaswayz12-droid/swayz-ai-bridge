@@ -44,8 +44,12 @@ class SupervisedWindowFailureTests(unittest.TestCase):
         }
 
     def run_window(self, failure=None):
-        def protected(path):
-            return self.config if path == window.CONFIG else self.metadata
+        def protected(path, *, max_bytes=32768):
+            if path == window.CONFIG:
+                self.assertEqual(max_bytes, 32768)
+                return self.config
+            self.assertEqual(max_bytes, 131072)
+            return self.metadata
         def cmd(*args, **kwargs):
             self.events.append(args[0] + ":" + args[1])
             if failure == "watchdog" and args[0] == "systemd-run":
