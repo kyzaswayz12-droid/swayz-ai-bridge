@@ -21,14 +21,14 @@ JOURNAL = "/var/lib/swayzcontrol/state/journal.db"
 REPO = "kyzaswayz12-droid/swayz-ai-bridge"
 
 
-def _protected_json(path):
+def _protected_json(path, *, max_bytes=32768):
     p = Path(path)
     if not p.is_absolute() or p.is_symlink() or not p.is_file():
         raise PermissionError("Protected file missing or unsafe")
     info = p.stat()
     if info.st_uid != 0 or info.st_mode & 0o077 or not stat.S_ISREG(info.st_mode):
         raise PermissionError("File must be root-owned and mode 0600 or stricter")
-    if info.st_size > 32768:
+    if info.st_size > max_bytes:
         raise PermissionError("Protected file too large")
     value = json.loads(p.read_text())
     if not isinstance(value, dict):
@@ -48,7 +48,7 @@ def main(argv=None):
     if (request_path.parent != Path("/var/lib/swayz-executor/requests")
             or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}\.json", request_path.name)):
         raise PermissionError("Request must use the protected job inbox")
-    request = _protected_json(args.request)
+    request = _protected_json(args.request, max_bytes=131072)
     if request.get("job_id") != request_path.stem:
         raise PermissionError("Request job identity does not match inbox filename")
     if set(config) != {"job_db", "budget_db", "signing_key_file", "approved_image_digests"}:
