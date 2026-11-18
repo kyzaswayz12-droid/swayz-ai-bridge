@@ -75,6 +75,25 @@ class SupervisedWindowFailureTests(unittest.TestCase):
                 "S", (), {"st_uid":0, "st_mode":0o100600})()
             return window.run("job1", "/protected/job1.json")
 
+    def test_resume_rejects_promote_combination(self):
+        with self.assertRaises(PermissionError):
+            window.run("job1", "/protected/job1.json", held_job=True, resume_admitted=True)
+
+    def test_resume_requires_existing_admission(self):
+        with patch.object(window.os, "geteuid", return_value=0), patch.object(
+            window.sys.stdin, "isatty", return_value=True), patch.object(
+            window, "protected_json", side_effect=lambda p, **kw: self.config if p == window.CONFIG else self.metadata), patch.object(
+            window, "verify_snapshot_before_execution"), patch(
+            "builtins.input", return_value="AUTHORISE job1"), patch.object(
+            window, "EmergencyStop", side_effect=lambda _: Stop()), patch.object(
+            window, "cmd"), patch.object(
+            window, "require_existing_admission", side_effect=PermissionError("Already used")), patch.object(
+            window.Path, "stat", autospec=True) as stat:
+            stat.side_effect = lambda self, *a, **k: type("S", (), {"st_uid":0,"st_mode":0o100600})()
+            with self.assertRaisesRegex(PermissionError, "Already used"):
+                window.run("job1", "/protected/job1.json", resume_admitted=True)
+        self.assertTrue(Stop.stopped)
+
     def test_success_restores_stop(self):
         self.assertEqual(self.run_window()["state"], "passed")
         self.assertTrue(Stop.stopped)
