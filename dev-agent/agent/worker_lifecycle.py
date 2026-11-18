@@ -43,7 +43,7 @@ def plan_worker_lifecycle(job_id: str, image_digest: str, *,
         for entry in root.rglob("*"):
             if entry.is_symlink():
                 raise PermissionError("Workspace contains symlink")
-        mount = ("--mount", f"type=bind,src={root},dst=/work,readonly", "--workdir", "/work")
+        mount = ("--mount", f"type=bind,src={root},dst=/work,readonly", "--workdir", "/work/dev-agent")
     name = "swayz-test-" + job_id
     image = "python@"+image_digest
     return WorkerLifecycle(
