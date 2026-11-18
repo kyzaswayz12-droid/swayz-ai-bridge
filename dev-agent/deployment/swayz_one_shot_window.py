@@ -8,6 +8,7 @@ import argparse
 import json
 import os
 import stat
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -95,12 +96,36 @@ def admit_held_task(job_id):
         journal.close()
 
 
-def run(job_id, metadata_path, held_job=False):
+def require_existing_admission(job_id):
+    """Resume only an already claimed, once-admitted job; never insert or claim."""
+    from agent.persistent_stop_guard import PersistentStopGuard
+    PersistentStopGuard(STOP).require_running()
+    day = datetime.now(timezone.utc).date().isoformat()
+    checks = (
+        (QUEUE, "SELECT day_utc,state FROM development_tasks WHERE job_id=?", (day, "claimed")),
+        (JOBS, "SELECT day_utc FROM admitted_jobs WHERE job_id=?", (day,)),
+        (JOURNAL, "SELECT state FROM worker_jobs WHERE job_id=?", ("admitted",)),
+    )
+    for path, query, expected in checks:
+        p = Path(path)
+        if not p.is_absolute() or p.is_symlink() or not p.is_file():
+            raise PermissionError("Existing admission database unavailable")
+        with sqlite3.connect(p.as_uri() + "?mode=ro", uri=True) as db:
+            rows = db.execute(query, (job_id,)).fetchall()
+        if rows != [expected]:
+            raise PermissionError("Job not eligible for one-time admitted recovery")
+    if (Path(INBOX) / (job_id + ".json")).exists():
+        raise PermissionError("Existing signed request requires reconciliation")
+
+
+def run(job_id, metadata_path, held_job=False, resume_admitted=False):
     if os.geteuid() != 0 or not sys.stdin.isatty():
         raise PermissionError("Interactive root operator required")
     import re
     if not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", job_id):
         raise ValueError("Invalid job ID")
+    if held_job and resume_admitted:
+        raise PermissionError("Cannot promote and resume simultaneously")
     config = protected_json(CONFIG)
     metadata = protected_json(metadata_path, max_bytes=131072)
     if set(metadata) != {"job_id","commit_sha","manifest_sha256","snapshot",
@@ -108,6 +133,8 @@ def run(job_id, metadata_path, held_job=False):
         raise PermissionError("Unexpected job metadata")
     if metadata["job_id"] != job_id:
         raise PermissionError("Job identity mismatch")
+    if Path(metadata["snapshot_root"]) / job_id != Path(metadata["snapshot"]):
+        raise PermissionError("Unexpected snapshot identity")
     # Verify the immutable approved snapshot BEFORE consuming a job slot.
     verify_snapshot_before_execution(metadata["snapshot"], metadata["expected_hashes"])
     if set(config) != {"job_db","budget_db","signing_key_file","approved_image_digests"}:
@@ -140,7 +167,9 @@ def run(job_id, metadata_path, held_job=False):
             stop.close()
         # Admit exactly once, inside the authorised window. The existing
         # 20-job quota is consumed by submit_verified_task, not twice.
-        if held_job:
+        if resume_admitted:
+            require_existing_admission(job_id)
+        elif held_job:
             admit_held_task(job_id)
         else:
             admit_supervised_smoke(job_id)
@@ -165,19 +194,22 @@ def main():
     parser.add_argument("--recover", action="store_true")
     parser.add_argument("--job")
     parser.add_argument("--metadata")
+    parser.add_argument("--resume-admitted", action="store_true",
+                        help="Execute existing claimed admission without re-admitting")
     parser.add_argument("--held-job", action="store_true",
                         help="Promote the existing held Slack job instead of staging a smoke task")
     args = parser.parse_args()
     if os.geteuid() != 0:
         raise PermissionError("Root operator required")
     if args.recover:
-        if args.job or args.metadata or args.held_job:
+        if args.job or args.metadata or args.held_job or args.resume_admitted:
             parser.error("Recovery accepts no job arguments")
         restore()
     else:
         if not args.job or not args.metadata:
             parser.error("Job and protected metadata required")
-        print(json.dumps(run(args.job, args.metadata, held_job=args.held_job)))
+        print(json.dumps(run(args.job, args.metadata, held_job=args.held_job,
+                             resume_admitted=args.resume_admitted)))
 
 
 if __name__ == "__main__":
