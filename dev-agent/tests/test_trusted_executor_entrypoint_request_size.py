@@ -17,12 +17,8 @@ class ProtectedRequestSizeTests(unittest.TestCase):
             p.write_text(json.dumps({"expected_hashes": {str(i): "a" * 64 for i in range(600)}}))
             self.assertGreater(p.stat().st_size, 32768)
             self.assertLess(p.stat().st_size, 131072)
-            with patch.object(entry.Path, "stat", autospec=True) as mocked:
-                real_stat = Path.stat
-                def stat(path, *args, **kwargs):
-                    result = real_stat(path, *args, **kwargs)
-                    return type("ProtectedStat", (), {"st_uid": 0, "st_mode": 0o100600, "st_size": result.st_size})()
-                mocked.side_effect = stat
+            size = p.stat().st_size
+            with patch.object(entry.Path, "stat", return_value=type("ProtectedStat", (), {"st_uid": 0, "st_mode": 0o100600, "st_size": size})()):
                 with self.assertRaisesRegex(PermissionError, "too large"):
                     entry._protected_json(p)
                 self.assertEqual(len(entry._protected_json(p, max_bytes=131072)["expected_hashes"]), 600)
@@ -31,9 +27,8 @@ class ProtectedRequestSizeTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             p = Path(directory) / "request.json"
             p.write_text(json.dumps({"hashes": "a" * 131073}))
-            with patch.object(entry.Path, "stat", autospec=True) as mocked:
-                real_stat = Path.stat
-                mocked.side_effect = lambda path, *a, **kw: type("ProtectedStat", (), {"st_uid": 0, "st_mode": 0o100600, "st_size": real_stat(path, *a, **kw).st_size})()
+            size = p.stat().st_size
+            with patch.object(entry.Path, "stat", return_value=type("ProtectedStat", (), {"st_uid": 0, "st_mode": 0o100600, "st_size": size})()):
                 with self.assertRaisesRegex(PermissionError, "too large"):
                     entry._protected_json(p, max_bytes=131072)
 
