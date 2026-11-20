@@ -45,7 +45,7 @@ class IntegratedWorkerPreparationTests(unittest.TestCase):
         result = self.call()
         self.assertEqual(result.state, "awaiting_trusted_worker")
         self.assertFalse(result.docker_executed)
-        self.assertIn(f"type=bind,src={self.snapshots / 'job1'},dst=/work,readonly",
+        self.assertIn(f"type=bind,src={self.snapshots / 'job1'},dst=/home,readonly",
                       result.docker_argv)
         journal = WorkerJournal(self.journal_path)
         self.assertEqual(journal.status("job1")[0], "admitted")
