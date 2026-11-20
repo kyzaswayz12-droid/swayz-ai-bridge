@@ -65,3 +65,38 @@ class ActivationWindowContractTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             self.invoke("dispatch")
         self.assertEqual(self.events, ["watchdog","release","prepare","dispatch","restore"])
+
+
+class LegacySnapshotRootTests(unittest.TestCase):
+    """Legacy metadata may be interpreted, never rewritten or trusted broadly."""
+
+    def test_legacy_job_directory_root(self):
+        from deployment.swayz_one_shot_window import validated_snapshot_root
+        job = "swayzoffline20261120a"
+        snapshot = "/var/lib/swayz-executor/snapshots/" + job
+        self.assertEqual(validated_snapshot_root(job, {
+            "snapshot": snapshot, "snapshot_root": snapshot
+        }), "/var/lib/swayz-executor/snapshots")
+
+    def test_canonical_parent_root(self):
+        from deployment.swayz_one_shot_window import validated_snapshot_root
+        job = "swayzoffline20261120a"
+        root = "/var/lib/swayz-executor/snapshots"
+        self.assertEqual(validated_snapshot_root(job, {
+            "snapshot": root + "/" + job, "snapshot_root": root
+        }), root)
+
+    def test_reject_other_snapshot_and_root(self):
+        from deployment.swayz_one_shot_window import validated_snapshot_root
+        job = "swayzoffline20261120a"
+        root = "/var/lib/swayz-executor/snapshots"
+        for snapshot, supplied_root in (
+            (root + "/different", root + "/different"),
+            (root + "/" + job, "/tmp"),
+            ("/tmp/" + job, "/tmp"),
+        ):
+            with self.subTest(snapshot=snapshot, supplied_root=supplied_root):
+                with self.assertRaises(PermissionError):
+                    validated_snapshot_root(job, {
+                        "snapshot": snapshot, "snapshot_root": supplied_root
+                    })
