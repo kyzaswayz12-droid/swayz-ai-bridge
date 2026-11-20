@@ -28,7 +28,7 @@ def plan_snapshot_execution(*, job_id, snapshot, snapshot_root, image_digest):
     if path.stat().st_mode & 0o222:
         raise PermissionError("Snapshot must not be writable")
     lifecycle = plan_worker_lifecycle(job_id, image_digest, workspace=str(path))
-    mount = f"type=bind,src={path},dst=/work,readonly"
+    mount = f"type=bind,src={path},dst=/home,readonly"
     if mount not in lifecycle.run_argv:
         raise PermissionError("Snapshot mount missing")
     return SnapshotExecutionPlan("awaiting_trusted_worker", lifecycle, str(path))
