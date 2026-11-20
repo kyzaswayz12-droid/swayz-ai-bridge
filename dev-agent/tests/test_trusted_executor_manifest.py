@@ -52,7 +52,7 @@ class TrustedExecutorManifestTests(unittest.TestCase):
         self.assertIn("--read-only", argv)
         self.assertIn("--rm", argv)
         self.assertIn("--security-opt", argv)
-        self.assertIn("type=bind,src=" + str(self.snapshot) + ",dst=/work,readonly", argv)
+        self.assertIn("type=bind,src=" + str(self.snapshot) + ",dst=/home,readonly", argv)
 
     def test_tampered_snapshot_rejected(self):
         self.file.chmod(0o644)
