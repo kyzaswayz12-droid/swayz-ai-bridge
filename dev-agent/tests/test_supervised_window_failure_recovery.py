@@ -34,7 +34,8 @@ class SupervisedWindowFailureTests(unittest.TestCase):
         self.events = []
         self.metadata = {
             "job_id":"job1", "commit_sha":"a"*40, "manifest_sha256":"b"*64,
-            "snapshot":"/snap/job1", "snapshot_root":"/snap",
+            "snapshot":"/var/lib/swayz-executor/snapshots/job1",
+            "snapshot_root":"/var/lib/swayz-executor/snapshots",
             "expected_hashes":{"x":"c"*64}, "image_digest":"sha256:"+"d"*64
         }
         self.config = {
