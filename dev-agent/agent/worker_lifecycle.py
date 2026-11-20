@@ -48,7 +48,7 @@ def plan_worker_lifecycle(job_id: str, image_digest: str, *,
     # code snapshots and CI smoke fixtures place tests at the workspace root.
     # Select only one of these two fixed, local layouts; never accept a caller path.
     if workspace is not None and (Path(workspace) / "dev-agent" / "tests").is_dir():
-        discovery = ("-s", "dev-agent/tests", "-t", "dev-agent")
+        discovery = ("-s", "dev-agent/tests")
     else:
         discovery = ("-s", "tests")
     name = "swayz-test-" + job_id
