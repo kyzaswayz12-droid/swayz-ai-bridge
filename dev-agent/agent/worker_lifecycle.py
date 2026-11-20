@@ -43,7 +43,7 @@ def plan_worker_lifecycle(job_id: str, image_digest: str, *,
         for entry in root.rglob("*"):
             if entry.is_symlink():
                 raise PermissionError("Workspace contains symlink")
-        mount = ("--mount", f"type=bind,src={root},dst=/work,readonly", "--workdir", "/work")
+        mount = ("--mount", f"type=bind,src={root},dst=/home,readonly", "--workdir", "/home")
     # The immutable repository archive nests tests under dev-agent; generated
     # code snapshots and CI smoke fixtures place tests at the workspace root.
     # Select only one of these two fixed, local layouts; never accept a caller path.
