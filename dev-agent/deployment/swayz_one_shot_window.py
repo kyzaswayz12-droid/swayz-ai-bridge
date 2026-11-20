@@ -150,6 +150,19 @@ def validate_prepared_request(job_id, metadata, signing_key):
         raise PermissionError("Signed request signature identity mismatch")
 
 
+def validated_snapshot_root(job_id, metadata):
+    """Accept legacy metadata only for the exact canonical immutable snapshot."""
+    canonical_root = Path("/var/lib/swayz-executor/snapshots")
+    canonical_snapshot = canonical_root / job_id
+    snapshot = Path(metadata["snapshot"])
+    supplied_root = Path(metadata["snapshot_root"])
+    if (snapshot != canonical_snapshot or canonical_root.is_symlink()
+            or snapshot.is_symlink()
+            or supplied_root not in (canonical_root, canonical_snapshot)):
+        raise PermissionError("Unexpected snapshot identity")
+    return str(canonical_root)
+
+
 def run(job_id, metadata_path, held_job=False, resume_admitted=False,
         dispatch_prepared=False):
     if os.geteuid() != 0 or not sys.stdin.isatty():
@@ -166,8 +179,7 @@ def run(job_id, metadata_path, held_job=False, resume_admitted=False,
         raise PermissionError("Unexpected job metadata")
     if metadata["job_id"] != job_id:
         raise PermissionError("Job identity mismatch")
-    if Path(metadata["snapshot_root"]) / job_id != Path(metadata["snapshot"]):
-        raise PermissionError("Unexpected snapshot identity")
+    snapshot_root = validated_snapshot_root(job_id, metadata)
     # Verify the immutable approved snapshot BEFORE consuming a job slot.
     verify_snapshot_before_execution(metadata["snapshot"], metadata["expected_hashes"])
     if set(config) != {"job_db","budget_db","signing_key_file","approved_image_digests"}:
@@ -214,7 +226,7 @@ def run(job_id, metadata_path, held_job=False, resume_admitted=False,
         if dispatch_prepared:
             result = dispatch_prepared_offline_job(
                 job_id=job_id, snapshot=metadata["snapshot"],
-                snapshot_root=metadata["snapshot_root"],
+                snapshot_root=snapshot_root,
                 expected_hashes=metadata["expected_hashes"],
                 signing_key_path=KEY, stop_db=STOP)
         else:
