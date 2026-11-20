@@ -10,7 +10,7 @@ class OfflineUnittestWorkdirTests(unittest.TestCase):
             root = Path(parent) / "job123"
             (root / "dev-agent" / "tests").mkdir(parents=True)
             plan = plan_worker_lifecycle("job123", "sha256:" + "a"*64, workspace=str(root))
-            self.assertIn(("--workdir", "/work"), tuple(zip(plan.run_argv, plan.run_argv[1:])))
+            self.assertIn(("--workdir", "/home"), tuple(zip(plan.run_argv, plan.run_argv[1:])))
             self.assertEqual(plan.run_argv[-9:], ("python", "-m", "unittest", "discover", "-s", "dev-agent/tests", "-t", "dev-agent", "-v"))
 
 if __name__ == "__main__":
