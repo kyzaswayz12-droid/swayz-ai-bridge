@@ -95,6 +95,25 @@ def main():
         if generated != {"state": "passed", "cleanup_verified": True}:
             raise RuntimeError("Generated code did not pass real Docker acceptance")
         print("SWAYZ_GENERATED_CODE_REAL_DOCKER_PASSED")
+        # Exercise the nested immutable repository layout in a real restricted container.
+        nested = root / "nested1"
+        nested_tests = nested / "dev-agent" / "tests"
+        nested_tests.mkdir(parents=True)
+        nested_test = nested_tests / "test_smoke.py"
+        nested_test.write_text("import unittest\nclass Smoke(unittest.TestCase):\n    def test_ok(self): self.assertTrue(True)\n")
+        nested_test.chmod(0o444)
+        nested_tests.chmod(0o555)
+        (nested / "dev-agent").chmod(0o555)
+        nested.chmod(0o555)
+        nested_plan = plan_worker_lifecycle("nested1", digest, workspace=str(nested))
+        nested_transport = build_guarded_transport(nested_plan, server_control_db=str(db_path))
+        nested_result = run_supervised_lifecycle(
+            nested_plan, transport=nested_transport, daemon_probe=nested_transport.daemon_healthy)
+        if nested_result.state != "passed" or not nested_result.cleanup_verified:
+            print("SWAYZ_NESTED_DOCKER_STATE", nested_result.state)
+            print("SWAYZ_NESTED_DOCKER_OUTPUT", nested_result.output[:1500])
+            raise RuntimeError("Nested immutable snapshot Docker smoke failed")
+        print("SWAYZ_NESTED_DOCKER_SMOKE_PASSED")
         # Verify the same persistent stop database prevents a second real
         # Docker invocation. The second job is never launched.
         with sqlite3.connect(db_path) as db:

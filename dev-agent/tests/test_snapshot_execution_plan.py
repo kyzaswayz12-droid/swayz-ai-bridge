@@ -28,7 +28,7 @@ class SnapshotExecutionPlanTests(unittest.TestCase):
     def test_mounts_only_snapshot(self):
         plan = self.plan()
         self.assertEqual(plan.state, "awaiting_trusted_worker")
-        self.assertIn(f"type=bind,src={self.snapshot},dst=/work,readonly",
+        self.assertIn(f"type=bind,src={self.snapshot},dst=/home,readonly",
                       plan.lifecycle.run_argv)
         self.assertFalse(plan.docker_executed)
 

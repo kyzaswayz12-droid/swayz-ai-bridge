@@ -19,9 +19,9 @@ class WorkerWorkspaceMountTests(unittest.TestCase):
     def test_readonly_mount_and_workdir(self):
         plan = plan_worker_lifecycle("job1", DIGEST, workspace=str(self.work))
         args = plan.run_argv
-        self.assertIn(f"type=bind,src={self.work},dst=/work,readonly", args)
+        self.assertIn(f"type=bind,src={self.work},dst=/home,readonly", args)
         self.assertIn("--workdir", args)
-        self.assertEqual(args[args.index("--workdir")+1], "/work")
+        self.assertEqual(args[args.index("--workdir")+1], "/home")
         self.assertIn("--network", args)
         self.assertEqual(args[args.index("--network")+1], "none")
 
