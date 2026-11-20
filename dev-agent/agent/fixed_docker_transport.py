@@ -24,9 +24,9 @@ class FixedDockerTransport:
             raise PermissionError("Missing approved image digest")
         # Independently rebuild the fixed lifecycle, including mount and timeout.
         mount = next((v for v in plan.run_argv if v.startswith("type=bind,src=")), None)
-        if mount is None or not mount.endswith(",dst=/work,readonly"):
+        if mount is None or not mount.endswith(",dst=/home,readonly"):
             raise PermissionError("Read-only workspace required")
-        workspace = mount[len("type=bind,src="):-len(",dst=/work,readonly")]
+        workspace = mount[len("type=bind,src="):-len(",dst=/home,readonly")]
         expected = plan_worker_lifecycle(
             job_id, image[len("python@"):], workspace=workspace,
             timeout_seconds=plan.timeout_seconds)
