@@ -38,15 +38,22 @@ def prepare_offline_executor_request(*, job_id, commit_sha, manifest_sha256,
     if not root.is_absolute() or root.is_symlink() or snap != root / job_id:
         raise PermissionError("Unexpected snapshot path")
     verify_snapshot_before_execution(str(snap), expected_hashes)
-    day = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).date().isoformat()
+    today = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).date()
     for path in (queue_db, job_db, journal_db):
         p = Path(path)
         if not p.is_absolute() or p.is_symlink() or not p.is_file():
             raise PermissionError("Required state unavailable")
     with sqlite3.connect(Path(queue_db).as_uri() + "?mode=ro", uri=True) as db:
         rows = db.execute("SELECT day_utc,state FROM development_tasks WHERE job_id=?", (job_id,)).fetchall()
-    if rows != [(day, "claimed")]:
+    if len(rows) != 1 or rows[0][1] != "claimed":
         raise PermissionError("Claimed task missing or expired")
+    day = rows[0][0]
+    try:
+        admission_day = datetime.strptime(day, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        raise PermissionError("Invalid admission date") from None
+    if admission_day > today:
+        raise PermissionError("Future admission date")
     with sqlite3.connect(Path(job_db).as_uri() + "?mode=ro", uri=True) as db:
         rows = db.execute("SELECT day_utc FROM admitted_jobs WHERE job_id=?", (job_id,)).fetchall()
         count = db.execute("SELECT COUNT(*) FROM admitted_jobs WHERE day_utc=?", (day,)).fetchone()[0]
