@@ -158,10 +158,27 @@ def validate_reserved_signed_worker_plan(
     job_id = signed_plan_args.get("job_id")
     admitted = query(job_db,
         "SELECT day_utc FROM admitted_jobs WHERE job_id=?", (job_id,))
-    if admitted != [(day,)]:
+    if len(admitted) != 1:
+        raise PermissionError("Daily job admission missing or expired")
+    admission_day = admitted[0][0]
+    if offline_only and admission_day != day:
+        # Cross-midnight recovery is restricted to an existing, claimed offline
+        # job. The signed identity, stop, journal and replay gates still run.
+        from datetime import date
+        try:
+            original = date.fromisoformat(admission_day)
+        except (TypeError, ValueError):
+            raise PermissionError("Invalid original admission date") from None
+        if original.isoformat() != admission_day or original > now.astimezone(timezone.utc).date():
+            raise PermissionError("Invalid original admission date")
+        queue = query("/var/lib/swayzcontrol/state/development_tasks.db",
+            "SELECT day_utc,state FROM development_tasks WHERE job_id=?", (job_id,))
+        if queue != [(admission_day, "claimed")]:
+            raise PermissionError("Original offline admission not claimed")
+    elif admission_day != day:
         raise PermissionError("Daily job admission missing or expired")
     count = query(job_db,
-        "SELECT COUNT(*) FROM admitted_jobs WHERE day_utc=?", (day,))
+        "SELECT COUNT(*) FROM admitted_jobs WHERE day_utc=?", (admission_day,))
     if len(count) != 1 or not 1 <= count[0][0] <= 20:
         raise PermissionError("Daily job quota invalid")
     if offline_only:
