@@ -64,7 +64,20 @@ class ReservedSignedWorkerGateTests(unittest.TestCase):
                 path = queue.as_uri() + "?mode=ro"
             return original_connect(path, *args, **kwargs)
 
-        return patch("sqlite3.connect", side_effect=redirect)
+        from contextlib import contextmanager
+        original_is_file = Path.is_file
+
+        def is_file(path):
+            if str(path) == "/var/lib/swayzcontrol/state/development_tasks.db":
+                return True  # Simulated authoritative path in the test only.
+            return original_is_file(path)
+
+        @contextmanager
+        def simulated_queue():
+            with patch("sqlite3.connect", side_effect=redirect), patch.object(Path, "is_file", is_file):
+                yield
+
+        return simulated_queue()
 
     @patch("agent.trusted_docker_executor.validate_signed_admitted_worker_plan")
     def test_cross_midnight_offline_claimed_admission_accepted(self, gate):
