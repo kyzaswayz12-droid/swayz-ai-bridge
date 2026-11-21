@@ -96,3 +96,17 @@ class OperatorSignedRequestTests(unittest.TestCase):
             db.execute("UPDATE development_tasks SET state='queued'")
         with self.assertRaises(PermissionError):
             self.prepare()
+
+    def test_prior_day_admission_preserves_original_date(self):
+        path = Path(self.prepare(now=datetime(2026,11,6,12,tzinfo=timezone.utc)))
+        self.assertTrue(path.exists())
+
+    def test_future_dated_admission_rejected(self):
+        with self.assertRaises(PermissionError):
+            self.prepare(now=datetime(2026,11,4,12,tzinfo=timezone.utc))
+
+    def test_mismatched_admission_dates_rejected(self):
+        with sqlite3.connect(self.jobs) as db:
+            db.execute("UPDATE admitted_jobs SET day_utc='2026-11-06'")
+        with self.assertRaises(PermissionError):
+            self.prepare(now=datetime(2026,11,6,12,tzinfo=timezone.utc))
