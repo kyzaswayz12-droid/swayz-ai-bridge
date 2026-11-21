@@ -162,7 +162,8 @@ class ExistingAdmissionDateTests(unittest.TestCase):
         def connect(database, *, uri=False, **kwargs):
             if uri is not True:
                 raise AssertionError("Admission database must be read-only URI")
-            path = database.removeprefix("file:").split("?")[0]
+            from urllib.parse import urlsplit, unquote
+            path = unquote(urlsplit(database).path)
             return FakeConnection(path)
         with patch(
             "agent.persistent_stop_guard.PersistentStopGuard"
