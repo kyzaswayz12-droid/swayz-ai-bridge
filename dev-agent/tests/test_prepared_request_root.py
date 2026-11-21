@@ -29,8 +29,8 @@ class PreparedRequestRootTests(unittest.TestCase):
                             expected_hashes={"a": "b"}, image_digest="image", now="2026-11-21")
 
     def check(self):
-        with patch.object(window, "protected_json", return_value=self.request), \\
-             patch.object(window, "verify_manifest_job") as verify:
+        with (patch.object(window, "protected_json", return_value=self.request),
+              patch.object(window, "verify_manifest_job") as verify):
             verify.return_value.job_id = JOB
             verify.return_value.commit_sha = "commit"
             window.validate_prepared_request(JOB, self.metadata, str(self.key))
