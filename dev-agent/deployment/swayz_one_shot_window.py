@@ -140,11 +140,17 @@ def validate_prepared_request(job_id, metadata, signing_key):
                         "expected_manifest", "expected_commit_sha", "snapshot",
                         "snapshot_root", "expected_hashes", "image_digest", "now"}:
         raise PermissionError("Unexpected signed request fields")
+    canonical_root = Path("/var/lib/swayz-executor/snapshots")
+    canonical_snapshot = canonical_root / job_id
+    if (Path(request["snapshot"]) != canonical_snapshot
+            or Path(request["snapshot_root"]) != canonical_root
+            or Path(metadata["snapshot"]) != canonical_snapshot
+            or Path(metadata["snapshot_root"]) not in (canonical_root, canonical_snapshot)):
+        raise PermissionError("Signed request snapshot identity mismatch")
     if (request["job_id"] != job_id or request["request_id"] is not None
             or request["provider"] != "none"
             or any(request[k] != metadata[k] for k in (
-                "commit_sha", "manifest_sha256", "snapshot", "snapshot_root",
-                "expected_hashes", "image_digest") if k in request)):
+                "snapshot", "expected_hashes", "image_digest"))):
         raise PermissionError("Signed request does not match approved metadata")
     if (request["expected_commit_sha"] != metadata["commit_sha"]
             or request["expected_manifest"] != metadata["manifest_sha256"]):
