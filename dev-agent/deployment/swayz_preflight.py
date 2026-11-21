@@ -18,12 +18,12 @@ from deployment import swayz_one_shot_window as window
 JOB_PATTERN = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
 
 
-def _read_rows(path, sql, job_id):
+def _read_rows(path, sql, job_id=None):
     p = Path(path)
     if not p.is_absolute() or p.is_symlink() or not p.is_file():
         raise PermissionError("Ledger path missing or unsafe")
     with sqlite3.connect(p.as_uri() + "?mode=ro", uri=True, timeout=5) as db:
-        return db.execute(sql, (job_id,)).fetchall()
+        return db.execute(sql, () if job_id is None else (job_id,)).fetchall()
 
 
 def inspect(job_id, *, paths=None):
@@ -95,11 +95,7 @@ def inspect(job_id, *, paths=None):
             raise PermissionError("Protected configuration identity mismatch")
         # Production verifier reads the protected existing request and signing
         # key; no request creation or key output.
-        if paths is None:
-            window.validate_prepared_request(job_id, metadata, p["key"])
-        else:
-            # Tests use a mocked verifier with disposable request fixtures.
-            window.validate_prepared_request(job_id, metadata, p["key"])
+        window.validate_prepared_request(job_id, metadata, p["key"])
         data["metadata"] = metadata
 
     def snapshot():
@@ -111,7 +107,7 @@ def inspect(job_id, *, paths=None):
         verify_snapshot_before_execution(metadata["snapshot"], metadata["expected_hashes"])
 
     def stop():
-        rows = _read_rows(p["stop"], "SELECT stopped FROM agent_control WHERE id=1", job_id)
+        rows = _read_rows(p["stop"], "SELECT stopped FROM agent_control WHERE id=1")
         if rows != [(1,)]:
             raise PermissionError("Emergency stop not engaged")
 
