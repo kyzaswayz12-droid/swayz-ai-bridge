@@ -102,20 +102,32 @@ def require_existing_admission(job_id, *, prepared=False):
     """Resume only an already claimed, once-admitted job; never insert or claim."""
     from agent.persistent_stop_guard import PersistentStopGuard
     PersistentStopGuard(STOP).require_running()
-    day = datetime.now(timezone.utc).date().isoformat()
     checks = (
-        (QUEUE, "SELECT day_utc,state FROM development_tasks WHERE job_id=?", (day, "claimed")),
-        (JOBS, "SELECT day_utc FROM admitted_jobs WHERE job_id=?", (day,)),
-        (JOURNAL, "SELECT state FROM worker_jobs WHERE job_id=?", ("admitted",)),
+        (QUEUE, "SELECT day_utc,state FROM development_tasks WHERE job_id=?"),
+        (JOBS, "SELECT day_utc FROM admitted_jobs WHERE job_id=?"),
+        (JOURNAL, "SELECT state FROM worker_jobs WHERE job_id=?"),
     )
-    for path, query, expected in checks:
+    records = []
+    for path, query in checks:
         p = Path(path)
         if not p.is_absolute() or p.is_symlink() or not p.is_file():
             raise PermissionError("Existing admission database unavailable")
         with sqlite3.connect(p.as_uri() + "?mode=ro", uri=True) as db:
             rows = db.execute(query, (job_id,)).fetchall()
-        if rows != [expected]:
+        if len(rows) != 1:
             raise PermissionError("Job not eligible for one-time admitted recovery")
+        records.append(rows[0])
+    (queue_day, queue_state), (admitted_day,), (journal_state,) = records
+    # Preserve the original admission day across midnight; never mint a new
+    # admission, accept mismatched dates, or accept a future-dated record.
+    try:
+        original_day = datetime.strptime(queue_day, "%Y-%m-%d").date()
+    except (TypeError, ValueError):
+        raise PermissionError("Invalid original admission date") from None
+    if (queue_state != "claimed" or journal_state != "admitted"
+            or admitted_day != queue_day
+            or original_day > datetime.now(timezone.utc).date()):
+        raise PermissionError("Job not eligible for one-time admitted recovery")
     if not prepared and (Path(INBOX) / (job_id + ".json")).exists():
         raise PermissionError("Existing signed request requires reconciliation")
 
