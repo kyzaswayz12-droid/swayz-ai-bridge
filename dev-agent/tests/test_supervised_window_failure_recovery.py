@@ -159,11 +159,12 @@ class ExistingAdmissionDateTests(unittest.TestCase):
                 return self
             def fetchall(self):
                 return rows[self.path]
-        def connect(uri, uri_flag=False, **kwargs):
-            path = uri.removeprefix("file:").split("?")[0]
+        def connect(database, *, uri=False, **kwargs):
+            if uri is not True:
+                raise AssertionError("Admission database must be read-only URI")
+            path = database.removeprefix("file:").split("?")[0]
             return FakeConnection(path)
-        real_exists = Path.exists
-        with patch.object(window, "PersistentStopGuard", create=True), patch(
+        with patch(
             "agent.persistent_stop_guard.PersistentStopGuard"
         ) as guard, patch.object(window.sqlite3, "connect", side_effect=connect), patch.object(
             window.Path, "is_file", return_value=True
