@@ -132,3 +132,68 @@ class SupervisedWindowFailureTests(unittest.TestCase):
             self.run_window("watchdog")
         self.assertTrue(Stop.stopped)
         self.assertNotIn("handoff", self.events)
+
+
+class ExistingAdmissionDateTests(unittest.TestCase):
+    """A cross-midnight resume must retain all three authoritative records."""
+
+    def check(self, queue_day="2026-11-20", admitted_day="2026-11-20",
+              queue_state="claimed", journal_state="admitted", request_exists=False):
+        from datetime import datetime, timezone
+        from unittest.mock import patch
+        rows = {
+            window.QUEUE: [(queue_day, queue_state)],
+            window.JOBS: [(admitted_day,)],
+            window.JOURNAL: [(journal_state,)],
+        }
+        class FakeConnection:
+            def __init__(self, path):
+                self.path = path
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def execute(self, query, params):
+                if params != ("swayzoffline20261120a",):
+                    raise AssertionError("Unexpected job identity")
+                return self
+            def fetchall(self):
+                return rows[self.path]
+        def connect(uri, uri_flag=False, **kwargs):
+            path = uri.removeprefix("file:").split("?")[0]
+            return FakeConnection(path)
+        real_exists = Path.exists
+        with patch.object(window, "PersistentStopGuard", create=True), patch(
+            "agent.persistent_stop_guard.PersistentStopGuard"
+        ) as guard, patch.object(window.sqlite3, "connect", side_effect=connect), patch.object(
+            window.Path, "is_file", return_value=True
+        ), patch.object(window.Path, "is_symlink", return_value=False), patch.object(
+            window.Path, "exists", return_value=request_exists
+        ), patch.object(window, "datetime") as dt:
+            dt.strptime.side_effect = datetime.strptime
+            dt.now.return_value = datetime(2026, 11, 21, tzinfo=timezone.utc)
+            window.require_existing_admission("swayzoffline20261120a")
+            guard.return_value.require_running.assert_called_once()
+
+    def test_cross_midnight_original_admission_is_accepted(self):
+        self.check()
+
+    def test_mismatched_original_dates_rejected(self):
+        with self.assertRaises(PermissionError):
+            self.check(admitted_day="2026-11-21")
+
+    def test_unclaimed_job_rejected(self):
+        with self.assertRaises(PermissionError):
+            self.check(queue_state="pending")
+
+    def test_consumed_journal_rejected(self):
+        with self.assertRaises(PermissionError):
+            self.check(journal_state="passed")
+
+    def test_future_dated_admission_rejected(self):
+        with self.assertRaises(PermissionError):
+            self.check(queue_day="2026-11-22", admitted_day="2026-11-22")
+
+    def test_existing_signed_request_requires_reconciliation(self):
+        with self.assertRaises(PermissionError):
+            self.check(request_exists=True)
