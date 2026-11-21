@@ -60,7 +60,7 @@ class ReservedSignedWorkerGateTests(unittest.TestCase):
         original_connect = sqlite3.connect
 
         def redirect(path, *args, **kwargs):
-            if str(path).startswith("file:/var/lib/swayzcontrol/state/development_tasks.db"):
+            if str(path).startswith(Path("/var/lib/swayzcontrol/state/development_tasks.db").as_uri()):
                 path = queue.as_uri() + "?mode=ro"
             return original_connect(path, *args, **kwargs)
 
