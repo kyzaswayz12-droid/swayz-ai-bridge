@@ -50,6 +50,52 @@ class ReservedSignedWorkerGateTests(unittest.TestCase):
             self.validate(provider="none", request_id=None)
         gate.assert_not_called()
 
+    def _cross_midnight(self, queue_day="2026-11-03", queue_state="claimed"):
+        from unittest.mock import patch
+        queue = Path(self.tmp.name) / "queue.db"
+        with sqlite3.connect(queue) as db:
+            db.execute("CREATE TABLE development_tasks(job_id TEXT,day_utc TEXT,state TEXT)")
+            db.execute("INSERT INTO development_tasks VALUES (?,?,?)",
+                       ("job1", queue_day, queue_state))
+        original_connect = sqlite3.connect
+
+        def redirect(path, *args, **kwargs):
+            if str(path).startswith("file:/var/lib/swayzcontrol/state/development_tasks.db"):
+                path = queue.as_uri() + "?mode=ro"
+            return original_connect(path, *args, **kwargs)
+
+        return patch("sqlite3.connect", side_effect=redirect)
+
+    @patch("agent.trusted_docker_executor.validate_signed_admitted_worker_plan")
+    def test_cross_midnight_offline_claimed_admission_accepted(self, gate):
+        with self._cross_midnight():
+            self.validate(provider="none", request_id=None,
+                          now=datetime(2026, 11, 4, 12, tzinfo=timezone.utc))
+        gate.assert_called_once_with(job_id="job1")
+
+    @patch("agent.trusted_docker_executor.validate_signed_admitted_worker_plan")
+    def test_cross_midnight_rejects_unclaimed_job(self, gate):
+        with self._cross_midnight(queue_state="pending"):
+            with self.assertRaises(PermissionError):
+                self.validate(provider="none", request_id=None,
+                              now=datetime(2026, 11, 4, 12, tzinfo=timezone.utc))
+        gate.assert_not_called()
+
+    @patch("agent.trusted_docker_executor.validate_signed_admitted_worker_plan")
+    def test_cross_midnight_paid_admission_still_expires(self, gate):
+        with self._cross_midnight():
+            with self.assertRaises(PermissionError):
+                self.validate(now=datetime(2026, 11, 4, 12, tzinfo=timezone.utc))
+        gate.assert_not_called()
+
+    @patch("agent.trusted_docker_executor.validate_signed_admitted_worker_plan")
+    def test_cross_midnight_rejects_future_admission(self, gate):
+        with self._cross_midnight():
+            with self.assertRaises(PermissionError):
+                self.validate(provider="none", request_id=None,
+                              now=datetime(2026, 11, 2, 12, tzinfo=timezone.utc))
+        gate.assert_not_called()
+
     @patch("agent.trusted_docker_executor.validate_signed_admitted_worker_plan")
     def test_paid_provider_cannot_omit_reservation(self, gate):
         with self.assertRaises(PermissionError):
