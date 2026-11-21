@@ -245,7 +245,7 @@ def run(job_id, metadata_path, held_job=False, resume_admitted=False,
             result = run_one_supervised_handoff(
             job_id=job_id, commit_sha=metadata["commit_sha"],
             manifest_sha256=metadata["manifest_sha256"],
-            snapshot=metadata["snapshot"], snapshot_root=metadata["snapshot_root"],
+            snapshot=metadata["snapshot"], snapshot_root=snapshot_root,
             expected_hashes=metadata["expected_hashes"],
             image_digest=metadata["image_digest"],
             approved_images=frozenset(config["approved_image_digests"]),
