@@ -29,7 +29,15 @@ class PreparedRequestRootTests(unittest.TestCase):
                             expected_hashes={"a": "b"}, image_digest="image", now="2026-11-21")
 
     def check(self):
+        from unittest.mock import Mock
+        real_stat = Path.stat
+        def protected_key_stat(path, *args, **kwargs):
+            result = real_stat(path, *args, **kwargs)
+            if path == self.key:
+                return Mock(st_uid=0, st_mode=result.st_mode)
+            return result
         with (patch.object(window, "protected_json", return_value=self.request),
+              patch.object(Path, "stat", protected_key_stat),
               patch.object(window, "verify_manifest_job") as verify):
             verify.return_value.job_id = JOB
             verify.return_value.commit_sha = "commit"
