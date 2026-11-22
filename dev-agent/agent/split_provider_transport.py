@@ -210,7 +210,7 @@ def run_signed_provider_handoff(*, job_id, base_sha, inbox, public_key,
     _write_once(Path(checkpoint_dir) / (job_id + ".openai-attempt"), b"attempted")
     guard("openai")
     raw = transport("openai", prepare_openai_request(
-        MODELS[0], coder_instruction, TASK, max_output_tokens=1024),
+        MODELS[0], coder_instruction, TASK, max_output_tokens=3072),
         keys["OPENAI_API_KEY"])
     if not isinstance(raw, bytes) or len(raw) > 1048576:
         raise PermissionError("Invalid OpenAI response")
