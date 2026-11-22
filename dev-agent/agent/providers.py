@@ -28,7 +28,7 @@ def _parse_json(body: bytes):
 
 def openai_response(body: bytes) -> ModelResponse:
     data=_parse_json(body)
-    if data.get("status") != "completed":
+    if data.get("status", "completed") != "completed":
         raise ValueError("OpenAI response incomplete or not completed; no retry authorised")
     pieces=[]
     for item in data.get("output",[]):
