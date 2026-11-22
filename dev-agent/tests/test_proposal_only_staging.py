@@ -29,7 +29,7 @@ class ProposalOnlyTests(unittest.TestCase):
         self.claude = root / "claude.json"
         self.fx = root / "fx.json"
         self.creds = root / "providers.env"
-        self.creds.write_text("OPENAI_API_KEY=dummy-openai\\nANTHROPIC_API_KEY=dummy-anthropic\\n")
+        self.creds.write_text(chr(10).join(("OPENAI_API_KEY=dummy-openai", "ANTHROPIC_API_KEY=dummy-anthropic", "")))
         self.creds.chmod(0o600)
         self.stop = root / "stop.db"
         self.budget = root / "budget.db"
