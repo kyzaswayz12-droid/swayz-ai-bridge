@@ -20,6 +20,7 @@ from .collaboration_cost_preview import preview_task
 from .fx_approval import load_approved_gbp_per_usd
 from .rate_card_loader import load_rate_card
 from .review_validation import validate_review
+from .secret_file import load_provider_keys
 
 _SHA = re.compile(r"[0-9a-f]{40}\Z")
 _JOB = re.compile(r"[A-Za-z0-9_-]{1,64}\Z")
@@ -34,7 +35,8 @@ def _readonly_rows(path, statement):
 
 
 def inspect_approvals(*, task, openai_card, claude_card, fx_card,
-                      stop_db, gbp_budget_db, maximum_usd=Decimal("0.05"),
+                      stop_db, gbp_budget_db, credentials_file,
+                      maximum_usd=Decimal("0.05"),
                       now=None):
     """Read-only, fail-closed checks; STOP MUST stay engaged throughout."""
     if type(maximum_usd) is not Decimal or maximum_usd != Decimal("0.05"):
@@ -47,6 +49,11 @@ def inspect_approvals(*, task, openai_card, claude_card, fx_card,
         raise ValueError("Timezone-aware clock required")
     if _readonly_rows(stop_db, "SELECT stopped FROM agent_control WHERE id=1") != [(1,)]:
         raise PermissionError("Emergency stop must remain engaged")
+    # Validates owner and exact permission mode; never prints or returns keys.
+    keys = load_provider_keys(credentials_file)
+    if set(keys) != {"OPENAI_API_KEY", "ANTHROPIC_API_KEY"}:
+        raise PermissionError("Provider credentials incomplete")
+    del keys
     a = load_rate_card(openai_card, "openai", "gpt-5-mini", today=now.date())
     b = load_rate_card(claude_card, "anthropic", "claude-haiku-4-5-20251001",
                        today=now.date())
