@@ -34,6 +34,7 @@ JOB = "offline-real-uid-handoff"
 BASE = "a" * 40
 PRODUCTION_STOP = Path("/var/lib/swayzcontrol/state/stop.db")
 PRODUCTION_EXECUTOR = Path("/opt/swayz/executor-app")
+INSTALLED_PROVIDER_PACKAGE = Path("/opt/swayz/provider-only")
 PRODUCTION_BUDGET = Path("/var/lib/swayz-executor/budget.sqlite3")
 
 # Runs as swayzdev, in a separate subprocess with the installed module.
@@ -135,8 +136,9 @@ def _write(path, data, mode=0o600, uid=0, gid=0):
 def _run():
     if os.geteuid() != 0:
         raise PermissionError("This offline cross-account test requires root")
-    if not PRODUCTION_EXECUTOR.is_dir() or not PRODUCTION_BUDGET.is_file():
-        raise PermissionError("Expected working executor/budget paths missing")
+    if (not PRODUCTION_EXECUTOR.is_dir() or not PRODUCTION_BUDGET.is_file()
+            or not (INSTALLED_PROVIDER_PACKAGE / "agent/split_provider_authority.py").is_file()):
+        raise PermissionError("Expected installed provider-only and working executor paths missing")
     _real_stop_engaged()
     swayz = pwd.getpwnam("swayzdev")
     gid = grp.getgrnam("swayzdev").gr_gid
@@ -232,7 +234,7 @@ def _run():
         thread.start()
         try:
             env = os.environ.copy()
-            env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
+            env["PYTHONPATH"] = str(INSTALLED_PROVIDER_PACKAGE)
             env["PYTHONDONTWRITEBYTECODE"] = "1"
             proc = subprocess.run(
                 ["runuser", "-u", "swayzdev", "--", "env",
