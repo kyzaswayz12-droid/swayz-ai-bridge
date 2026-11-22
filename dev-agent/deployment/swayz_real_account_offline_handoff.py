@@ -234,12 +234,15 @@ def _run():
         thread.start()
         try:
             env = os.environ.copy()
-            env["PYTHONPATH"] = str(INSTALLED_PROVIDER_PACKAGE)
+            # Test the freshly checked-out, CI-verified candidate without
+            # modifying the installed provider-only package.
+            env["PYTHONPATH"] = str(Path(__file__).resolve().parents[1])
             env["PYTHONDONTWRITEBYTECODE"] = "1"
             proc = subprocess.run(
                 ["runuser", "-u", "swayzdev", "--", "env",
                  "PYTHONPATH=" + env["PYTHONPATH"], "PYTHONDONTWRITEBYTECODE=1",
                  "python3", "-B", "-c", WORKER, str(root), JOB, BASE],
+                cwd=str(INSTALLED_PROVIDER_PACKAGE),
                 text=True, capture_output=True, timeout=30)
             if proc.returncode:
                 raise RuntimeError(
