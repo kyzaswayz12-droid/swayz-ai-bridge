@@ -91,7 +91,9 @@ def run_provider_only(*, job_id, base_sha, checkpoint_dir, openai_card,
     """
     if owner_authorised is not True or paid_calls_enabled is not True:
         raise PermissionError("Explicit provider-only owner approval required")
-    if transport is not provider_transport and test_mode is not True:
+    if test_mode is True and transport is provider_transport:
+        raise PermissionError("Simulated tests must use an injected fake transport")
+    if test_mode is not True and transport is not provider_transport:
         raise PermissionError("Custom live provider transport rejected")
     if not callable(transport):
         raise PermissionError("Provider transport invalid")
@@ -122,7 +124,6 @@ def run_provider_only(*, job_id, base_sha, checkpoint_dir, openai_card,
 
     # The marker prevents double spending even on a crash between two
     # budget reservations. Never delete or reset it to repeat a failed call.
-    prefix = root / job_id
     _write_once(root / (job_id + ".started.json"), {
         "job_id": job_id, "base_sha": base_sha, "task": _TASK,
         "started_utc": now.astimezone(timezone.utc).isoformat(),
