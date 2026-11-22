@@ -28,6 +28,8 @@ def _parse_json(body: bytes):
 
 def openai_response(body: bytes) -> ModelResponse:
     data=_parse_json(body)
+    if data.get("status", "completed") != "completed":
+        raise ValueError("OpenAI response incomplete or not completed; no retry authorised")
     pieces=[]
     for item in data.get("output",[]):
         if not isinstance(item,dict):
@@ -68,7 +70,7 @@ def prepare_openai_request(model: str, instruction: str, task: str, *, max_outpu
     if type(max_output_tokens) is not int or not 1<=max_output_tokens<=4096:
         raise ValueError("Invalid output cap")
     return {"model":model,"instructions":instruction,"input":task,
-            "max_output_tokens":max_output_tokens,"store":False}
+            "max_output_tokens":max_output_tokens,"reasoning":{"effort":"low"},"store":False}
 
 def review_json_schema():
     return {"type":"object","additionalProperties":False,
