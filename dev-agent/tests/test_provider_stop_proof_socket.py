@@ -136,8 +136,7 @@ class RootStopProofTests(unittest.TestCase):
             reply+=b.recv(4096)
         thread.join(timeout=2)
         self.assertFalse(failures, repr(failures))
-        self.assertFalse(failures, repr(failures))
-        self.assertTrue(reply.endswith(b"\\n"))
+        self.assertTrue(reply.endswith(bytes([10])))
         _verify_stop_proof(proof=reply[:-1],grant_bytes=self.grant,job_id=JOB,
             phase="anthropic",public_key=self.signer.public_key(),now=NOW)
 
