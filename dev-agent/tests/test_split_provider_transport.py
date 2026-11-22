@@ -136,9 +136,8 @@ class SplitProviderTransportTests(unittest.TestCase):
 
     def test_invalid_signature_cannot_claim_or_call(self):
         self.prepare()
-        with patch.object(self.signer,"public_key",return_value=Ed25519PrivateKey.generate().public_key()):
-            with self.assertRaises(PermissionError):
-                self.worker()
+        with self.assertRaises(PermissionError):
+            self.worker(public_key=Ed25519PrivateKey.generate().public_key())
         self.assertEqual(self.calls,[])
 
     def test_stop_change_blocks_before_any_call(self):
@@ -160,7 +159,8 @@ class SplitProviderTransportTests(unittest.TestCase):
         with self.assertRaises(PermissionError):
             self.worker(transport=stop_after_openai)
         self.assertEqual(self.calls,["openai"])
-        self.assertFalse((self.results/(JOB+".claude-attempt")).exists())
+        self.assertTrue((self.results/(JOB+".claude-attempt")).exists())
+        self.assertFalse((self.results/(JOB+".claude.json")).exists())
 
     def test_transport_exception_no_retry(self):
         self.prepare()
@@ -205,31 +205,36 @@ class SplitProviderTransportTests(unittest.TestCase):
             self.worker(get_fresh_stop_proof=bad_proof,now=NOW.replace(minute=2))
         self.assertEqual(self.calls,[])
 
-    def test_grant_transfer_has_no_side_effects(self):
+    def test_grant_transfer_is_write_once_group_readable(self):
         self.prepare()
-        # Mock only directory ownership, never skip its restrictive mode.
-        actual_stat=self.inbox.stat()
-        from unittest.mock import patch as mock_patch
+        existing=self.inbox/(JOB+".grant.json")
+        existing.unlink()  # Only an isolated test fixture, never production.
+        original_stat=Path.stat
+        inode=original_stat(self.inbox)
         class FakeStat:
             st_uid=0
             st_gid=os.getgid()
-            st_mode=actual_stat.st_mode
-        original_stat=Path.stat
+            st_mode=inode.st_mode
         def stat(path,*args,**kwargs):
-            if path == self.inbox:
+            if path==self.inbox:
                 return FakeStat()
             return original_stat(path,*args,**kwargs)
-        src=self.grants/(JOB+".grant.json")
-        import grp
-        with mock_patch("agent.split_provider_transport.os.geteuid",return_value=0), \
-             mock_patch("agent.split_provider_transport.grp.getgrnam",
-                        return_value=SimpleNamespace(gr_gid=os.getgid())), \
-             mock_patch.object(Path,"stat",stat):
-            output=publish_split_grant(
-                source=src,inbox=self.inbox,job_id=JOB,worker_group="swayzdev",
-                require_stop_engaged=self.stop_check) if not (self.inbox/(JOB+".grant.json")).exists() else None
-        # Existing inbox file from setup is not overwritten.
-        self.assertEqual((self.inbox/(JOB+".grant.json")).read_bytes(),self.grant_bytes)
+        with patch("agent.split_provider_transport.os.geteuid",return_value=0), \
+             patch("grp.getgrnam",return_value=SimpleNamespace(gr_gid=os.getgid())), \
+             patch("agent.split_provider_transport.os.fchown"), \
+             patch.object(Path,"stat",stat):
+            result=publish_split_grant(
+                source=self.grants/(JOB+".grant.json"),inbox=self.inbox,
+                job_id=JOB,worker_group="swayzdev",
+                require_stop_engaged=self.stop_check)
+            self.assertEqual(result["state"],"grant_published")
+            with self.assertRaises(FileExistsError):
+                publish_split_grant(
+                    source=self.grants/(JOB+".grant.json"),inbox=self.inbox,
+                    job_id=JOB,worker_group="swayzdev",
+                    require_stop_engaged=self.stop_check)
+        self.assertEqual(existing.read_bytes(),self.grant_bytes)
+        self.assertEqual(existing.stat().st_mode & 0o777,0o640)
 
 
 if __name__=="__main__":
