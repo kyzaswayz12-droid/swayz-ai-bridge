@@ -73,7 +73,7 @@ class RootStopProofTests(unittest.TestCase):
         request={"job_id":JOB,"phase":"openai",
                  "grant_sha256":hashlib.sha256(self.grant).hexdigest()}
         request.update(kwargs.pop("request",{}))
-        with patch("agent.provider_stop_proof_socket.Path.stat",self.root_directory_stat), \
+        with patch("agent.provider_stop_proof_socket.Path.stat",lambda p,*a,**kw:self.root_directory_stat(p,*a,**kw)), \
              patch("agent.split_provider_transport.os.geteuid",return_value=0):
             return _answer(request=request,peer_uid=os.getuid(),
                 allowed_uid=os.getuid(),root_grants=self.grants,
@@ -117,7 +117,7 @@ class RootStopProofTests(unittest.TestCase):
         failures=[]
         def serve():
             try:
-                with patch("agent.provider_stop_proof_socket.Path.stat",self.root_directory_stat), \
+                with patch("agent.provider_stop_proof_socket.Path.stat",lambda p,*a,**kw:self.root_directory_stat(p,*a,**kw)), \
                      patch("agent.provider_stop_proof_socket.os.geteuid",return_value=0):
                     serve_one_peer(connection=a,allowed_uid=os.getuid(),
                         root_grants=self.grants,signing_key=self.signer,
