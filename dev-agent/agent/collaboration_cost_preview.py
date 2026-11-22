@@ -31,7 +31,7 @@ def preview_task(task: str, *, openai_model: str="gpt-5-mini",
     # input planning allowance, independent of any output token cap.
     claude_input_budget=MAX_REVIEW_BYTES
     a=reservation_for_request(reference_rate("openai",openai_model),
-                              openai_input_budget,1024)
+                              openai_input_budget,3072)
     b=reservation_for_request(reference_rate("anthropic",claude_model),
                               claude_input_budget,512)
     return CostPreview(a,b,a+b)
