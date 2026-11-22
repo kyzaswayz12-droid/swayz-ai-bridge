@@ -170,6 +170,7 @@ def run_signed_provider_handoff(*, job_id, base_sha, inbox, public_key,
         raise PermissionError("Unapproved live transport")
     if not callable(transport):
         raise PermissionError("Invalid transport")
+    clock_explicitly_supplied = now is not None
     if now is None:
         now = datetime.now(timezone.utc)
     now = _clock(now)
@@ -184,7 +185,7 @@ def run_signed_provider_handoff(*, job_id, base_sha, inbox, public_key,
         proof = get_fresh_stop_proof(phase, grant_bytes)
         _verify_stop_proof(proof=proof, grant_bytes=grant_bytes, job_id=job_id,
                            phase=phase, public_key=public_key,
-                           now=now if simulated else datetime.now(timezone.utc))
+                           now=now if clock_explicitly_supplied else datetime.now(timezone.utc))
     guard("openai")
     # consume_split_grant already validates signature, TTL, task, identities,
     # credential ownership and writes the permanent no-replay claim marker.
