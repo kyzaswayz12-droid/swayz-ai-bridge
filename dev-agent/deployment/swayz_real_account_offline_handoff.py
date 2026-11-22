@@ -242,7 +242,7 @@ def _run():
                 ["runuser", "-u", "swayzdev", "--", "env",
                  "PYTHONPATH=" + env["PYTHONPATH"], "PYTHONDONTWRITEBYTECODE=1",
                  "python3", "-B", "-c", WORKER, str(root), JOB, BASE],
-                cwd=str(INSTALLED_PROVIDER_PACKAGE),
+                # Never run Python -c from the installed package: cwd takes\n                # precedence over PYTHONPATH and would import stale modules.\n                cwd=str(root / "worker"),
                 text=True, capture_output=True, timeout=30)
             if proc.returncode:
                 raise RuntimeError(
