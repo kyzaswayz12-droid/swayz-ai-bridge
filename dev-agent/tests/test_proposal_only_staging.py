@@ -28,6 +28,9 @@ class ProposalOnlyTests(unittest.TestCase):
         self.openai = root / "openai.json"
         self.claude = root / "claude.json"
         self.fx = root / "fx.json"
+        self.creds = root / "providers.env"
+        self.creds.write_text("OPENAI_API_KEY=dummy-openai\\nANTHROPIC_API_KEY=dummy-anthropic\\n")
+        self.creds.chmod(0o600)
         self.stop = root / "stop.db"
         self.budget = root / "budget.db"
         self.output = root / "checkpoint"
@@ -53,6 +56,7 @@ class ProposalOnlyTests(unittest.TestCase):
                 status TEXT,actual_gbp TEXT)""")
         self.params = dict(task=TASK,openai_card=self.openai,claude_card=self.claude,
             fx_card=self.fx,stop_db=self.stop,gbp_budget_db=self.budget,
+            credentials_file=self.creds,
             now=datetime(2026,11,22,tzinfo=timezone.utc))
         self.proposal = {"base_sha": BASE, "branch": "agent/label-check-ci",
                          "changes": [{"path": "tests/test_job_label_ci.py",
@@ -138,6 +142,11 @@ class ProposalOnlyTests(unittest.TestCase):
         with sqlite3.connect(self.budget) as db:
             db.execute("INSERT INTO gbp_reservations VALUES(?,?,?,?,?,?)",
                        ("old","openai","2026-11-22","5.00","reserved",None))
+        with self.assertRaises(PermissionError):
+            self.approval()
+
+    def test_credentials_not_exposed_or_missing(self):
+        self.creds.chmod(0o644)
         with self.assertRaises(PermissionError):
             self.approval()
 
