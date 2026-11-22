@@ -110,6 +110,8 @@ class RootStopProofTests(unittest.TestCase):
 
     def test_local_socket_peer_credential_is_checked(self):
         a,b=socket.socketpair(socket.AF_UNIX,socket.SOCK_STREAM)
+        a.settimeout(3)
+        b.settimeout(3)
         self.addCleanup(a.close)
         self.addCleanup(b.close)
         failures=[]
@@ -132,7 +134,8 @@ class RootStopProofTests(unittest.TestCase):
         while not reply.endswith(b"\n"):
             reply+=b.recv(4096)
         thread.join(timeout=2)
-        self.assertFalse(failures)
+        self.assertFalse(failures, repr(failures))
+        self.assertTrue(reply.endswith(b"\\n"))
         _verify_stop_proof(proof=reply[:-1],grant_bytes=self.grant,job_id=JOB,
             phase="anthropic",public_key=self.signer.public_key(),now=NOW)
 
