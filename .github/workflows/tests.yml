@@ -61,3 +61,5 @@ jobs:
         run: |
           docker pull python:3.12-slim
           PYTHONPATH=dev-agent GITHUB_ACTIONS=true python3 dev-agent/ci_docker_smoke.py
+      - name: Reviewed generated-code integration (simulated GPT and Claude, real Docker)
+        run: PYTHONPATH=dev-agent GITHUB_ACTIONS=true python3 dev-agent/ci_reviewed_development_smoke.py
