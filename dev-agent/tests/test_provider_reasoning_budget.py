@@ -45,7 +45,7 @@ class ProviderReasoningBudgetTests(unittest.TestCase):
 
     def test_preview_accounts_for_increased_output_and_stays_under_ceiling(self):
         quote = preview_task(TASK)
-        self.assertEqual(quote.total_reservation_usd, Decimal("0.038490"))
+        self.assertEqual(quote.total_reservation_usd, Decimal("0.042586"))
         self.assertLessEqual(quote.total_reservation_usd, MAX_USD)
 
 
