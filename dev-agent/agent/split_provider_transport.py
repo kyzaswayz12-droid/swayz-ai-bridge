@@ -36,6 +36,20 @@ PHASES = ("openai", "anthropic")
 _SHA = re.compile(r"[a-f0-9]{40}\Z")
 
 
+def _coder_instruction(base_sha):
+    """Tell the provider the exact development branch allowed by change_plan."""
+    return (
+        "Return only JSON with base_sha,branch,changes,proposal_sha256. "
+        "base_sha must be " + base_sha + ". "
+        "The branch field MUST be exactly agent/job-label-validator-tests. "
+        "Do not choose a different branch name or prefix. "
+        "Exactly one new file tests/test_job_label.py containing a "
+        "self-contained Python unittest module. Reject unsafe labels, "
+        "path traversal and whitespace. No existing code changes, "
+        "credentials, deployment or trading."
+    )
+
+
 def _read_regular(path, limit):
     p = Path(path)
     if not p.is_absolute() or p.is_symlink() or not p.is_file():
@@ -198,13 +212,7 @@ def run_signed_provider_handoff(*, job_id, base_sha, inbox, public_key,
     if outcome["state"] != "claimed_for_operator_review":
         raise PermissionError("Grant claim not confirmed")
     keys = load_provider_keys(credential_file)
-    coder_instruction = (
-        "Return only JSON with base_sha,branch,changes,proposal_sha256. "
-        "base_sha must be " + base_sha + ". Exactly one new file "
-        "tests/test_job_label.py containing a self-contained Python unittest "
-        "module. Reject unsafe labels, path traversal and whitespace. No "
-        "existing code changes, credentials, deployment or trading."
-    )
+    coder_instruction = _coder_instruction(base_sha)
     # Record intent BEFORE each network boundary. If transport raises, the
     # permanent claim and intent prevent any automatic or manual replay.
     _write_once(Path(checkpoint_dir) / (job_id + ".openai-attempt"), b"attempted")
