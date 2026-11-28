@@ -44,9 +44,15 @@ def _coder_instruction(base_sha):
         "The branch field MUST be exactly agent/job-label-validator-tests. "
         "Do not choose a different branch name or prefix. "
         "Exactly one new file tests/test_job_label.py containing a "
-        "self-contained Python unittest module. Reject unsafe labels, "
-        "path traversal and whitespace. No existing code changes, "
-        "credentials, deployment or trading."
+        "self-contained Python unittest module. "
+        "The changes field MUST be a JSON array of exactly one object with "
+        "exactly two keys: path and content. Use the singular key content, "
+        "NEVER contents, code, or any additional key. "
+        "Use this exact JSON shape: "
+        '{"path":"tests/test_job_label.py","content":"<Python unittest source>"}. '
+        "Put the complete Python source as a JSON-escaped string under content. "
+        "Reject unsafe labels, path traversal and whitespace. "
+        "No existing code changes, credentials, deployment or trading."
     )
 
 
